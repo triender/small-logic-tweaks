@@ -1,0 +1,38 @@
+{
+  "description": {
+    "translate": "enchantment.small_logic_tweaks.timber"
+  },
+  "supported_items": "#minecraft:axes",
+  "primary_items": "#minecraft:axes",
+  "weight": 5,
+  "max_level": 3,
+  "min_cost": {
+    "base": 10,
+    "per_level_above_first": 10
+  },
+  "max_cost": {
+    "base": 50,
+    "per_level_above_first": 10
+  },
+  "anvil_cost": 4,
+  "slots": [
+    "mainhand"
+  ],
+  "exclusive_set": [
+    "minecraft:efficiency"
+  ],
+  "effects": {
+    "minecraft:damage": [
+      {
+        "effect": {
+          "type": "minecraft:add",
+          "value": {
+            "type": "minecraft:linear",
+            "base": 1.0,
+            "per_level_above_first": 0.5
+          }
+        }
+      }
+    ]
+  }
+}

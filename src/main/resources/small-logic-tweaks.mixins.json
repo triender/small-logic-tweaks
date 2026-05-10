@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "net.enderirt.smalllogictweaks.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"TimberMiningSpeedMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
