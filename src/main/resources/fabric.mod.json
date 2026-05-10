@@ -3,13 +3,14 @@
 	"id": "small-logic-tweaks",
 	"version": "${version}",
 	"name": "Small Logic Tweaks",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A minimalist quality-of-life modification that seamlessly refines foundational survival mechanics through intuitive environmental interactions and balanced resource-gathering.",
 	"authors": [
-		"Me!"
+		"EnderirT"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/triender/small-logic-tweaks",
+		"sources": "https://github.com/triender/small-logic-tweaks",
+		"issues": "https://github.com/triender/small-logic-tweaks/issues"
 	},
 	"license": "MIT",
 	"icon": "assets/small_logic_tweaks/icon.png",
