@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "small-logic-tweaks",
+	"id": "small_logic_tweaks",
 	"version": "${version}",
 	"name": "Small Logic Tweaks",
 	"description": "A minimalist quality-of-life modification that seamlessly refines foundational survival mechanics through intuitive environmental interactions and balanced resource-gathering.",
