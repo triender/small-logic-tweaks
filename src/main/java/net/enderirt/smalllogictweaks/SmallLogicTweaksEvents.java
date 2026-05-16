@@ -23,11 +23,7 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.Inet4Address;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 
 public class SmallLogicTweaksEvents {
@@ -82,13 +78,25 @@ public class SmallLogicTweaksEvents {
         });
     }
 
-    public record TimberResult(boolean shouldChop, List<BlockPos> logPositions, int level) {}
+    public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
+
+    // Lớp chứa cấu hình - Dễ dàng thay thế hoặc liên kết với Mod Config sau này
+    public static class TimberConfig {
+        // Cờ bật/tắt tính năng Fast Leaf Decay tích hợp
+        public static boolean ENABLE_AUTO_LEAVES_DECAY = true;
+
+        // Các Magic Numbers được tách ra
+        public static int MAX_LOG_HORIZONTAL_RADIUS = 5; // Giới hạn quét gỗ theo trục X/Z
+        public static int MAX_LEAF_DISTANCE = 7;         // Bán kính tối đa từ thân cây đến lá
+        public static int MIN_LEAVES_FOR_TREE = 4;       // Số lá tối thiểu để xác nhận là một cái cây
+        public static int DECAY_THRESHOLD = 6;
+    }
+    public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
     // Lưu trữ kết quả phân tích của khối đang đào hiện tại
     private static final ThreadLocal<BlockPos> LAST_CHECKED_POS = new ThreadLocal<>();
     private static final ThreadLocal<Float> CACHED_FACTOR = ThreadLocal.withInitial(() -> 1.0f);
 
-    public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
 
     // Hàm tiện ích để in Log
     private static void debugLog(String message, Object... args) {
@@ -98,7 +106,6 @@ public class SmallLogicTweaksEvents {
     }
 
     private static void registerTimberTweak() {
-        // Đăng ký sự kiện TRƯỚC khi khối bị phá vỡ (Thực thi phá cây)
         PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, entity) -> {
             if (!(world instanceof ServerLevel serverLevel) || player.isSpectator()) return true;
 
@@ -111,8 +118,8 @@ public class SmallLogicTweaksEvents {
             TimberResult result = analyzeTimber(serverLevel, player, pos, axe);
 
             if (result.shouldChop()) {
-                debugLog("[Timber] Validation successful! Found {} logs to break.", result.logPositions().size());
-                performTimberChop(serverLevel, (ServerPlayer) player, axe, result.logPositions());
+                debugLog("[Timber] Validation successful! Found {} logs to break.", result.logs().size());
+                performTimberChop(serverLevel, (ServerPlayer) player, axe, result);
                 return false;
             }
 
@@ -130,14 +137,14 @@ public class SmallLogicTweaksEvents {
         ItemStack axe = player.getMainHandItem();
         var result = analyzeTimber(level, player, pos, axe);
 
-        if (result.shouldChop() && !result.logPositions().isEmpty()) {
+        if (result.shouldChop() && !result.logs().isEmpty()) {
             float multiplier = switch (result.level()) {
                 case 1 -> 1.0f;
                 case 2 -> 0.9f;
                 case 3 -> 0.8f;
                 default -> 1.0f;
             };
-            CACHED_FACTOR.set(result.logPositions().size() * multiplier);
+            CACHED_FACTOR.set(result.logs().size() * multiplier);
         } else {
             CACHED_FACTOR.set(1.0f);
         }
@@ -148,103 +155,180 @@ public class SmallLogicTweaksEvents {
 
     private static TimberResult analyzeTimber(Level level, Player player, BlockPos startPos, ItemStack axe) {
         if (player.isShiftKeyDown() || !level.getBlockState(startPos).is(BlockTags.LOGS))
-            return new TimberResult(false, List.of(), 0);
+            return new TimberResult(false, List.of(), List.of(), 0);
 
         var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
         int levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(registry.getOrThrow(Timber.TIMBER), axe);
 
         if (levelEnchant <= 0) {
-            return new TimberResult(false, List.of(), 0);
+            return new TimberResult(false, List.of(), List.of(), 0);
         }
 
-        debugLog("[Timber] Analyze started. Enchantment Level: {}", levelEnchant);
+        int maxLogs;
+        switch (levelEnchant) {
+            case 1 -> maxLogs = 16;
+            case 2 -> maxLogs = 64;
+            case 3 -> maxLogs = 140;
+            default -> maxLogs = 0;
+        }
 
-        int maxBlocks = switch (levelEnchant) {
-            case 1 -> 16;
-            case 2 -> 64;
-            case 3 -> 128;
-            default -> 0;
-        };
+        Set<BlockPos> visitedLogs = new HashSet<>();
+        List<BlockPos> logs = new ArrayList<>();
+        Queue<BlockPos> logQueue = new LinkedList<>();
 
-        debugLog("[Timber] Level: {}, Max Capacity: {} blocks.", levelEnchant, maxBlocks);
+        logQueue.add(startPos);
+        visitedLogs.add(startPos);
 
-        List<BlockPos> finalToBreak = new ArrayList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        List<BlockPos> currentLayer = new ArrayList<>();
+        // --- PHA 1: TÌM GỖ ---
+        while (!logQueue.isEmpty() && logs.size() < maxLogs) {
+            BlockPos current = logQueue.poll();
+            logs.add(current);
 
-        currentLayer.add(startPos);
-        visited.add(startPos);
-
-        int leafCount = 0;
-        Set<BlockPos> countedLeaves = new HashSet<>();
-
-        while (!currentLayer.isEmpty() && finalToBreak.size() < maxBlocks) {
-            List<BlockPos> nextLayerWaiting = new ArrayList<>();
-
-            for (int i = 0; i < currentLayer.size() && finalToBreak.size() < maxBlocks; i++) {
-                BlockPos currentPos = currentLayer.get(i);
-                finalToBreak.add(currentPos);
-
-                if (leafCount < 5) {
-                    for (BlockPos p : BlockPos.betweenClosed(currentPos.offset(-1, -1, -1), currentPos.offset(1, 1, 1))) {
-                        if (!countedLeaves.contains(p)) {
-                            BlockState s = level.getBlockState(p);
-                            if (s.is(BlockTags.LEAVES) && s.hasProperty(LeavesBlock.PERSISTENT) && !s.getValue(LeavesBlock.PERSISTENT)) {
-                                countedLeaves.add(p.immutable());
-                                leafCount++;
-                                if (leafCount >= 5) {
-                                    debugLog("[Timber] Sufficient natural leaves found (5+). Tree confirmed.");
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for (int x = -1; x <= 1; x++) {
+            for (int x = -1; x <= 1; x++) {
+                for (int y = 0; y <= 1; y++) {
                     for (int z = -1; z <= 1; z++) {
-                        for (int y = 0; y <= 1; y++) {
-                            if (x == 0 && y == 0 && z == 0) continue;
-                            BlockPos neighbor = currentPos.offset(x, y, z);
+                        if (x == 0 && y == 0 && z == 0) continue;
+                        BlockPos neighbor = current.offset(x, y, z);
 
-                            if (Math.abs(neighbor.getX() - startPos.getX()) > 5 || Math.abs(neighbor.getZ() - startPos.getZ()) > 5) continue;
+                        // Sử dụng biến cấu hình thay vì Magic Number
+                        if (Math.abs(neighbor.getX() - startPos.getX()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS ||
+                                Math.abs(neighbor.getZ() - startPos.getZ()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS) continue;
 
-                            if (!visited.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
-                                visited.add(neighbor);
-                                if (y == 0) currentLayer.add(neighbor);
-                                else nextLayerWaiting.add(neighbor);
-                            }
+                        if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
+                            visitedLogs.add(neighbor);
+                            logQueue.add(neighbor);
                         }
                     }
                 }
             }
-            currentLayer = nextLayerWaiting;
         }
 
-        boolean isTree = leafCount >= 5;
-        if (!isTree) {
-            debugLog("[Timber] Chop cancelled: Insufficient natural leaves detected ({} found).", leafCount);
+        // --- PHA 2: TÌM LÁ ---
+        Set<BlockPos> visitedLeaves = new HashSet<>();
+        List<BlockPos> leaves = new ArrayList<>();
+        Queue<BlockPos> leafQueue = new LinkedList<>();
+        Map<BlockPos, Integer> leafDistance = new HashMap<>();
+
+        for (BlockPos log : logs) {
+            leafQueue.add(log);
+            leafDistance.put(log, 0);
         }
 
-        return new TimberResult(isTree && !finalToBreak.isEmpty(), finalToBreak, levelEnchant);
+        while (!leafQueue.isEmpty()) {
+            BlockPos current = leafQueue.poll();
+            int currentDist = leafDistance.get(current);
+
+            // Sử dụng biến cấu hình khoảng cách lá
+            if (currentDist >= TimberConfig.MAX_LEAF_DISTANCE) continue;
+
+            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                BlockPos neighbor = current.relative(dir);
+
+                if (!visitedLogs.contains(neighbor) && !visitedLeaves.contains(neighbor)) {
+                    visitedLeaves.add(neighbor);
+                    BlockState state = level.getBlockState(neighbor);
+
+                    if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT)) {
+                        leaves.add(neighbor);
+                        leafDistance.put(neighbor, currentDist + 1);
+                        leafQueue.add(neighbor);
+                    }
+                }
+            }
+        }
+
+        // Sử dụng biến cấu hình điều kiện lá tối thiểu
+        boolean isTree = !logs.isEmpty() && leaves.size() >= TimberConfig.MIN_LEAVES_FOR_TREE;
+
+        return new TimberResult(isTree, logs, leaves, levelEnchant);
     }
 
-    private static void performTimberChop(ServerLevel level, ServerPlayer player, ItemStack axe, List<BlockPos> positions) {
-        debugLog("[Timber] Execution: Breaking {} blocks...", positions.size());
-        int brokenCount = 0;
+    private static void performTimberChop(ServerLevel level, ServerPlayer player, ItemStack axe, TimberResult result) {
+        debugLog("[Timber] Execution: Breaking {} logs and checking {} leaves...", result.logs().size(), result.leaves().size());
+        int brokenLogsCount = 0;
 
-        for (BlockPos pos : positions) {
+        // 1. PHÁ GỖ (Giữ nguyên)
+        for (BlockPos logPos : result.logs()) {
             if (axe.isEmpty() || (axe.isDamageableItem() && axe.getDamageValue() >= axe.getMaxDamage())) {
-                debugLog("[Timber] Execution halted: Tool is broken or empty.");
                 break;
             }
-
-            if (level.destroyBlock(pos, true, player)) {
-                brokenCount++;
+            if (level.destroyBlock(logPos, true, player)) {
+                brokenLogsCount++;
                 axe.hurtAndBreak(1, level, player, (item) ->
                         player.onEquippedItemBroken(item, EquipmentSlot.MAINHAND));
             }
         }
-        debugLog("[Timber] Execution finished. Total blocks broken: {}", brokenCount);
+
+        // 2. ÉP GAME LOGIC XỬ LÝ LÁ (Tối ưu hóa In-Memory)
+        if (TimberConfig.ENABLE_AUTO_LEAVES_DECAY) {
+
+            // Khởi tạo không gian RAM để lưu trữ khoảng cách tính toán
+            Map<BlockPos, Integer> virtualDistances = new HashMap<>();
+            for (BlockPos leafPos : result.leaves()) {
+                BlockState state = level.getBlockState(leafPos);
+                if (state.hasProperty(LeavesBlock.DISTANCE)) {
+                    virtualDistances.put(leafPos, state.getValue(LeavesBlock.DISTANCE));
+                }
+            }
+
+            boolean changed;
+            int loops = 0;
+
+            // BƯỚC A: Chạy thuật toán cập nhật khoảng cách hoàn toàn trên RAM
+            do {
+                changed = false;
+                for (BlockPos leafPos : result.leaves()) {
+                    BlockState state = level.getBlockState(leafPos);
+
+                    if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
+                        int currentDist = virtualDistances.getOrDefault(leafPos, 7);
+                        int minDistance = 7;
+
+                        for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
+                            BlockPos neighborPos = leafPos.relative(dir);
+                            BlockState neighbor = level.getBlockState(neighborPos);
+
+                            if (neighbor.is(BlockTags.LOGS)) {
+                                minDistance = 1;
+                                break;
+                            } else if (neighbor.is(BlockTags.LEAVES) && neighbor.hasProperty(LeavesBlock.DISTANCE)) {
+                                // Lấy khoảng cách từ RAM nếu có, ngược lại lấy từ thế giới thực
+                                int neighborDist = virtualDistances.containsKey(neighborPos)
+                                        ? virtualDistances.get(neighborPos)
+                                        : neighbor.getValue(LeavesBlock.DISTANCE);
+
+                                minDistance = Math.min(minDistance, neighborDist + 1);
+                            }
+                        }
+
+                        // So sánh trên RAM, không gọi level.setBlock
+                        if (currentDist != minDistance) {
+                            virtualDistances.put(leafPos, minDistance);
+                            changed = true;
+                        }
+                    }
+                }
+                loops++;
+            } while (changed && loops < 10);
+
+            // BƯỚC B: Phá vỡ hoặc cập nhật lại trạng thái thực tế
+            for (BlockPos leafPos : result.leaves()) {
+                BlockState state = level.getBlockState(leafPos);
+
+                if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
+                    int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
+
+                    if (finalDistance >= TimberConfig.DECAY_THRESHOLD) {
+                        // Lá đạt ngưỡng: Thực hiện phá khối
+                        level.destroyBlock(leafPos, true);
+                    } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
+                        // Lá còn sống (do nối với cây khác): Cập nhật lại khoảng cách thực tế vào thế giới
+                        level.setBlock(leafPos, state.setValue(LeavesBlock.DISTANCE, finalDistance), 20);
+                    }
+                }
+            }
+        }
+
+        debugLog("[Timber] Execution finished. Logs broken: {}", brokenLogsCount);
     }
 }
