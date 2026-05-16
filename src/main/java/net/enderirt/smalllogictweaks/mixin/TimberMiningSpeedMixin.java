@@ -16,28 +16,22 @@ public abstract class TimberMiningSpeedMixin {
 
     @Inject(method = "getDestroyProgress", at = @At("RETURN"), cancellable = true)
     private void modifyTimberMiningProgress(Player player, BlockGetter world, BlockPos pos, CallbackInfoReturnable<Float> cir) {
+        float originalProgress = cir.getReturnValue();
+        if (originalProgress <= 0.0F) return;
+
         BlockState state = (BlockState) (Object) this;
 
-        if (!state.is(net.minecraft.tags.BlockTags.LOGS) || player.isShiftKeyDown()) return;
+        // Bỏ qua can thiệp thuật toán nếu không phải khối gỗ hoặc người chơi đang dùng chế độ đào chính xác (Shift)
+        if (!state.is(net.minecraft.tags.BlockTags.LOGS) || player.isShiftKeyDown()) {
+            return;
+        }
 
-        float originalProgress = cir.getReturnValue();
-        if (originalProgress <= 0) return;
+        float structuralResistance = SmallLogicTweaksEvents.getTimberSpeedFactor(player, pos);
 
-        // Lấy factor từ Cache (Hàm này giờ đã rất nhanh)
-        float nerfFactor = SmallLogicTweaksEvents.getTimberSpeedFactor(player, pos);
-
-        if (nerfFactor > 1.0f) {
-            float newProgress = originalProgress / nerfFactor;
-
-            float vanillaSeconds = (float) Math.ceil(1.0f / originalProgress) / 20.0f;
-            float timberSeconds = (float) Math.ceil(1.0f / newProgress) / 20.0f;
-
-            // In ra Console để dễ so sánh (Có thể xóa đi khi phát hành Mod)
-//            System.out.printf("[Timber-Time] Blocks: %.1f | Vanilla: %.2fs | Timber: %.2fs%n",
-//                    nerfFactor, vanillaSeconds, timberSeconds);
-
-            // Ghi đè giá trị: Vết nứt sẽ chạy chậm lại ngay lập tức trên màn hình
-            cir.setReturnValue(originalProgress / nerfFactor);
+        if (structuralResistance > 1.0F) {
+            // Cập nhật tiến trình theo thời gian thực (Delta) dựa trên sức cản cấu trúc
+            // Việc tính toán động tại mỗi tick giúp duy trì tính đồng bộ mạng tối đa
+            cir.setReturnValue(originalProgress / structuralResistance);
         }
     }
 }
