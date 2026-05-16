@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import net.fabricmc.loader.api.FabricLoader;
-import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -117,7 +116,15 @@ public class SmallLogicTweaksConfig {
 
                     // DỰ PHÒNG LỖI VIẾT HOA/VIẾT THƯỜNG (Case-Insensitivity): Duyệt qua từng khóa trong file JSON của người dùng
                     for (Map.Entry<String, JsonElement> entry : rawObject.entrySet()) {
-                        String normalizedKey = getString(entry);
+                        String key = entry.getKey();
+                        // Chuyển toàn bộ tên biến về chữ in hoa chuẩn hóa theo hệ thống của Java (Locale.ROOT để tránh lỗi phân vùng ngôn ngữ)
+                        String normalizedKey = key.toUpperCase(Locale.ROOT);
+
+                        // Xử lý biệt lệ cho các trường ghi chú: Hệ thống Java dùng chữ thường "_comment_..."
+                        // Nếu khóa bắt đầu bằng "_COMMENT_", ta đổi lại thành "_comment_" kèm phần đuôi viết hoa để khớp với thuộc tính lớp
+                        if (normalizedKey.startsWith("_COMMENT_")) {
+                            normalizedKey = "_comment_" + normalizedKey.substring(9);
+                        }
 
                         // Đưa cặp khóa đã chuẩn hóa và giá trị gốc vào đối tượng JSON sạch
                         normalizedObject.add(normalizedKey, entry.getValue());
@@ -166,19 +173,6 @@ public class SmallLogicTweaksConfig {
             }
             save();
         }
-    }
-
-    private static @NonNull String getString(Map.Entry<String, JsonElement> entry) {
-        String key = entry.getKey();
-        // Chuyển toàn bộ tên biến về chữ in hoa chuẩn hóa theo hệ thống của Java (Locale.ROOT để tránh lỗi phân vùng ngôn ngữ)
-        String normalizedKey = key.toUpperCase(Locale.ROOT);
-
-        // Xử lý biệt lệ cho các trường ghi chú: Hệ thống Java dùng chữ thường "_comment_..."
-        // Nếu khóa bắt đầu bằng "_COMMENT_", ta đổi lại thành "_comment_" kèm phần đuôi viết hoa để khớp với thuộc tính lớp
-        if (normalizedKey.startsWith("_COMMENT_")) {
-            normalizedKey = "_comment_" + normalizedKey.substring(9);
-        }
-        return normalizedKey;
     }
 
     public static void save() {
