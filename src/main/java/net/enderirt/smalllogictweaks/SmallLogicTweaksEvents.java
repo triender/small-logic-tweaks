@@ -17,6 +17,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -34,35 +35,70 @@ public class SmallLogicTweaksEvents {
         LOGGER.info(" Small logic Tweaks Mod register success!!");
     }
 
+
     private static void registerBoneMealTweak() {
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (world.isClientSide() || player.isSpectator()) return InteractionResult.PASS;
+            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_BONE_MEAL_TWEAK) return InteractionResult.PASS;
+            if (player.isSpectator()) return InteractionResult.PASS;
 
             ItemStack stack = player.getItemInHand(hand);
             BlockPos pos = hitResult.getBlockPos();
             BlockState state = world.getBlockState(pos);
 
-            if (stack.is(Items.BONE_MEAL) && state.is(BlockTags.DIRT)) {
+            // 1. Kiểm tra loại khối đất hợp lệ
+            boolean isValidDirt = SmallLogicTweaksConfig.INSTANCE.ALLOW_ALL_DIRT_TYPES
+                    ? state.is(BlockTags.DIRT)
+                    : state.is(Blocks.DIRT);
+
+            if (stack.is(Items.BONE_MEAL) && isValidDirt) {
                 BlockPos abovePos = pos.above();
-                // Kiểm tra khối phía trên có đặc không
+
+                // 2. Kiểm tra không gian trống phía trên
                 if (world.getBlockState(abovePos).isSolidRender() || !world.getFluidState(abovePos).isEmpty())
                     return InteractionResult.PASS;
 
-                // Logic Biome để chọn Cỏ hoặc Khuẩn ty
-                BlockState newState = world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)
-                        ? net.minecraft.world.level.block.Blocks.MYCELIUM.defaultBlockState()
-                        : net.minecraft.world.level.block.Blocks.GRASS_BLOCK.defaultBlockState();
+                BlockState newState = null;
 
-                // 1. Đổi khối
+                // 3. Xử lý logic khối nguồn lân cận
+                if (SmallLogicTweaksConfig.INSTANCE.REQUIRE_NEIGHBOR_SOURCE) {
+                    boolean hasGrassNeighbor = false;
+                    boolean hasMyceliumNeighbor = false;
+
+                    for (BlockPos checkPos : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
+                        if (checkPos.equals(pos)) continue;
+
+                        BlockState neighborState = world.getBlockState(checkPos);
+                        if (neighborState.is(Blocks.GRASS_BLOCK)) hasGrassNeighbor = true;
+                        if (neighborState.is(Blocks.MYCELIUM)) hasMyceliumNeighbor = true;
+                    }
+
+                    // Chọn khối đích dựa trên khối nguồn thực tế xung quanh (Ưu tiên tính logic thực tế)
+                    if (hasMyceliumNeighbor && world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)) {
+                        newState = Blocks.MYCELIUM.defaultBlockState();
+                    } else if (hasGrassNeighbor) {
+                        newState = Blocks.GRASS_BLOCK.defaultBlockState();
+                    } else if (hasMyceliumNeighbor) {
+                        newState = Blocks.MYCELIUM.defaultBlockState();
+                    }
+
+                    // Nếu bật REQUIRE_NEIGHBOR_SOURCE nhưng xung quanh hoàn toàn không có cỏ/khuẩn ty -> Hủy bỏ
+                    if (newState == null) return InteractionResult.PASS;
+                } else {
+                    // Nếu không yêu cầu khối nguồn, áp dụng logic Biome gốc của bạn
+                    newState = world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)
+                            ? Blocks.MYCELIUM.defaultBlockState()
+                            : Blocks.GRASS_BLOCK.defaultBlockState();
+                }
+
+                // --- ĐIỂM CHỐT LÀM MƯỢT GAME (CLIENT-SIDE PREDICTION) ---
+                // Phía Client thấy mọi điều kiện đã đủ thì trả về SUCCESS ngay để vung tay vón phân lập tức
+                if (world.isClientSide()) return InteractionResult.SUCCESS;
+
+                // --- LOGIC XỬ LÝ PHÍA SERVER ---
                 world.setBlockAndUpdate(pos, newState);
-                // 2. PHÁT ÂM THANH
                 world.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 1.0f, 1.0f);
-                // 3. HIỆU ỨNG HẠT (Cách Server chắc chắn thành công)
+
                 if (world instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                    // Tọa độ X, Y, Z (cộng thêm 0.5 và 1.0 để hạt nằm ở giữa bề mặt khối)
-                    // 15: số lượng hạt
-                    // 0.25, 0.25, 0.25: độ lan tỏa (offset)
-                    // 0.05: tốc độ bay của hạt
                     serverLevel.sendParticles(
                             net.minecraft.core.particles.ParticleTypes.HAPPY_VILLAGER,
                             pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
@@ -72,25 +108,13 @@ public class SmallLogicTweaksEvents {
 
                 if (!player.getAbilities().instabuild)
                     stack.shrink(1);
+
                 return InteractionResult.SUCCESS;
             }
             return InteractionResult.PASS;
         });
     }
 
-    public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
-
-    // Lớp chứa cấu hình - Dễ dàng thay thế hoặc liên kết với Mod Config sau này
-    public static class TimberConfig {
-        // Cờ bật/tắt tính năng Fast Leaf Decay tích hợp
-        public static boolean ENABLE_AUTO_LEAVES_DECAY = true;
-
-        // Các Magic Numbers được tách ra
-        public static int MAX_LOG_HORIZONTAL_RADIUS = 5; // Giới hạn quét gỗ theo trục X/Z
-        public static int MAX_LEAF_DISTANCE = 7;         // Bán kính tối đa từ thân cây đến lá
-        public static int MIN_LEAVES_FOR_TREE = 4;       // Số lá tối thiểu để xác nhận là một cái cây
-        public static int DECAY_THRESHOLD = 6;
-    }
     public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
     // Lưu trữ kết quả phân tích của khối đang đào hiện tại
@@ -100,7 +124,7 @@ public class SmallLogicTweaksEvents {
 
     // Hàm tiện ích để in Log
     private static void debugLog(String message, Object... args) {
-        if (ENABLE_TIMBER_DEBUG_LOGS) {
+        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_TIMBER_DEBUG_LOGS) {
             LOGGER.info(message, args);
         }
     }
@@ -191,8 +215,8 @@ public class SmallLogicTweaksEvents {
                         BlockPos neighbor = current.offset(x, y, z);
 
                         // Sử dụng biến cấu hình thay vì Magic Number
-                        if (Math.abs(neighbor.getX() - startPos.getX()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS ||
-                                Math.abs(neighbor.getZ() - startPos.getZ()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS) continue;
+                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
+                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
 
                         if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
                             visitedLogs.add(neighbor);
@@ -219,7 +243,7 @@ public class SmallLogicTweaksEvents {
             int currentDist = leafDistance.get(current);
 
             // Sử dụng biến cấu hình khoảng cách lá
-            if (currentDist >= TimberConfig.MAX_LEAF_DISTANCE) continue;
+            if (currentDist >= SmallLogicTweaksConfig.INSTANCE.MAX_LEAF_DISTANCE) continue;
 
             for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
                 BlockPos neighbor = current.relative(dir);
@@ -238,7 +262,7 @@ public class SmallLogicTweaksEvents {
         }
 
         // Sử dụng biến cấu hình điều kiện lá tối thiểu
-        boolean isTree = !logs.isEmpty() && leaves.size() >= TimberConfig.MIN_LEAVES_FOR_TREE;
+        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.INSTANCE.MIN_LEAVES_FOR_TREE;
 
         return new TimberResult(isTree, logs, leaves, levelEnchant);
     }
@@ -260,7 +284,7 @@ public class SmallLogicTweaksEvents {
         }
 
         // 2. ÉP GAME LOGIC XỬ LÝ LÁ (Tối ưu hóa In-Memory)
-        if (TimberConfig.ENABLE_AUTO_LEAVES_DECAY) {
+        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
 
             // Khởi tạo không gian RAM để lưu trữ khoảng cách tính toán
             Map<BlockPos, Integer> virtualDistances = new HashMap<>();
@@ -318,7 +342,7 @@ public class SmallLogicTweaksEvents {
                 if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
                     int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
 
-                    if (finalDistance >= TimberConfig.DECAY_THRESHOLD) {
+                    if (finalDistance >= SmallLogicTweaksConfig.INSTANCE.DECAY_THRESHOLD) {
                         // Lá đạt ngưỡng: Thực hiện phá khối
                         level.destroyBlock(leafPos, true);
                     } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
