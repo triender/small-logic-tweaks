@@ -533,7 +533,7 @@ public class SmallLogicTweaksEvents {
                             player.getName().getString(), timeSinceRest, currentInsomniaThreshold, hasElytra);
                 }
 
-                if (timeSinceRest >= currentInsomniaThreshold) {
+                if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
                     int rollValue = random.nextInt(timeSinceRest);
 
                     if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
@@ -557,7 +557,14 @@ public class SmallLogicTweaksEvents {
 
                         for (int i = 0; i < phantomCount; i++) {
                             int randomHeight = minHeight + random.nextInt(heightRange);
-                            net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
+                            int rawY = playerPos.getY() + randomHeight;
+                            // Clamp Y to world's valid build height range to prevent invalid spawn positions
+                            int clampedY = Math.max(level.getMinBuildHeight(), Math.min(rawY, level.getMaxBuildHeight() - 1));
+                            net.minecraft.core.BlockPos spawnPos = new net.minecraft.core.BlockPos(
+                                playerPos.getX() - 10 + random.nextInt(21), 
+                                clampedY, 
+                                playerPos.getZ() - 10 + random.nextInt(21)
+                            );
 
                             boolean isValidSpawn = false;
                             for (int attempt = 0; attempt < 10; attempt++) {

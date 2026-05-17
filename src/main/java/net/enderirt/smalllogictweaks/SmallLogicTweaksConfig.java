@@ -316,14 +316,15 @@ public class SmallLogicTweaksConfig {
             this.PHANTOM_CHECK_COOLDOWN = 1200;
         }
 
-        // Chặn lỗi số âm đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
-        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA < 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
+        // Chặn lỗi số âm hoặc 0 đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
+        // Giá trị 0 sẽ gây crash trong random.nextInt(0) nếu timeSinceRest = 0
+        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Must be positive. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
             this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
         }
 
-        if (this.PHANTOM_THRESHOLD_POST_ELYTRA < 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
+        if (this.PHANTOM_THRESHOLD_POST_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Must be positive. Resetting to default: 144000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
             this.PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
         }
 
