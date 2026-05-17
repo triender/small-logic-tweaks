@@ -83,17 +83,19 @@ The following concepts are being explored and may release in any order.
 
 ### Hydro-Hardening
 - right-clicking Concrete Powder with a Water Bottle hardens it directly into Concrete
+- bottle-consumption behavior is planned to be explicit and balanced against manual building speed
 
 ### Magma Kitchen
 - dropped raw food entities can enter a slow-cook state when resting on Magma Blocks
 - overexposure to heat beyond a burn threshold converts the food to a failed/burnt result
+- exact cook and burn timings are intended to be configurable/tunable during balancing
 
 ### Sawmill
 - improves plank and byproduct yield relative to baseline crafting recipes
 - improved decorative workflow support
 - potential future Fletching Table integration
 
-### Sniffer: Archeological Flora
+### Sniffer: Archaeological Flora
 - Sniffers can occasionally uncover mod-specific rare botanical relic items/seeds
 
 ### Anvil: Structural Penalty
@@ -102,7 +104,7 @@ The following concepts are being explored and may release in any order.
 - enchantment upgrades still scale long-term cost
 
 ### Allay: Music & Memory
-- rescued Allays store a persistent first-rescuer bond for ownership-like behavior checks
+- freed Allays (e.g., released from captivity structures) store a persistent first-rescuer bond for ownership-like behavior checks
 - music interactions can register a persistent anchor location for nearby Allays
 - duplicated Allays require new bonding
 
