@@ -87,7 +87,7 @@ The following concepts are being explored and may release in any order.
 
 ### Magma Kitchen
 - dropped raw food entities can enter a slow-cook state when resting on Magma Blocks
-- overexposure to heat beyond a burn threshold converts the food to a failed/burnt result
+- overexposure to heat beyond a burn threshold converts the food into a distinct burnt outcome (or removes the cooked output), depending on final balance tuning
 - exact cook and burn timings are intended to be configurable/tunable during balancing
 
 ### Sawmill
@@ -104,7 +104,7 @@ The following concepts are being explored and may release in any order.
 - enchantment upgrades still scale long-term cost
 
 ### Allay: Music & Memory
-- freed Allays (e.g., released from captivity structures) store a persistent first-rescuer bond for ownership-like behavior checks
+- freed Allays (e.g., released from captivity structures) persist the UUID of the first releasing/interacting player as their bond reference
 - music interactions can register a persistent anchor location for nearby Allays
 - duplicated Allays require new bonding
 
