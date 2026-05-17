@@ -104,7 +104,7 @@ public class SmallLogicTweaksConfig {
     public int PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
 
     public String _comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
-    public int PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+    public int PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
 
     public String _comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
     public int PHANTOM_MIN_COUNT = 1;
@@ -277,7 +277,7 @@ public class SmallLogicTweaksConfig {
         this._comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
         this._comment_ENABLE_END_PHANTOM = "Enable or disable custom Phantom spawning logic in The End dimension.";
         this._comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
-        this._comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 72000 / 6 in-game days]";
+        this._comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]";
         this._comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
         this._comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
         this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
@@ -317,12 +317,12 @@ public class SmallLogicTweaksConfig {
         }
 
         // Chặn lỗi số âm đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
-        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA < 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
+        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
             LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
             this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
         }
 
-        if (this.PHANTOM_THRESHOLD_POST_ELYTRA < 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
+        if (this.PHANTOM_THRESHOLD_POST_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
             LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
             this.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
         }

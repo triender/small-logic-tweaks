@@ -533,7 +533,7 @@ public class SmallLogicTweaksEvents {
                             player.getName().getString(), timeSinceRest, currentInsomniaThreshold, hasElytra);
                 }
 
-                if (timeSinceRest >= currentInsomniaThreshold) {
+                if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
                     int rollValue = random.nextInt(timeSinceRest);
 
                     if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
