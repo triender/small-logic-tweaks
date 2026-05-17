@@ -82,19 +82,19 @@ Tool identity is intentional:
 The following concepts are being explored and may release in any order.
 
 ### Hydro-Hardening
-- Water Bottles harden Concrete Powder directly into Concrete
+- right-clicking Concrete Powder with a Water Bottle hardens it directly into Concrete
 
 ### Magma Kitchen
-- dropped food can cook on Magma Blocks
-- unattended food can burn
+- dropped raw food entities can enter a slow-cook state when resting on Magma Blocks
+- overexposure to heat beyond a burn threshold converts the food to a failed/burnt result
 
 ### Sawmill
-- less wasteful wood processing
+- improves plank and byproduct yield relative to baseline crafting recipes
 - improved decorative workflow support
 - potential future Fletching Table integration
 
 ### Sniffer: Archeological Flora
-- Sniffers can occasionally discover rare botanical relics
+- Sniffers can occasionally uncover mod-specific rare botanical relic items/seeds
 
 ### Anvil: Structural Penalty
 - durability repairs no longer increase `RepairCost`
@@ -102,8 +102,8 @@ The following concepts are being explored and may release in any order.
 - enchantment upgrades still scale long-term cost
 
 ### Allay: Music & Memory
-- rescued Allays remember first rescuer
-- music can permanently anchor nearby Allays
+- rescued Allays store a persistent first-rescuer bond for ownership-like behavior checks
+- music interactions can register a persistent anchor location for nearby Allays
 - duplicated Allays require new bonding
 
 ### Weightless Creatures
