@@ -102,6 +102,43 @@ Behavioral arc:
 - **The Player's Instinct:** Players want a gentle way to park companions without re-caging what they rescued.
 - **The Natural Flow:** Music becomes a lore-consistent anchor that invites Allays to stay at intentional stations.
 
+## 11) Poisonous Potato: Organic Loop Integration
+
+- **The Vanilla Absurdity:** Vanilla Minecraft treats the Poisonous Potato as an absolute dead-end item. It cannot be eaten safely, cannot be baked, cannot be composted, and cannot be used in brewing, creating a systemic double standard where it fails both as organic waste and as a toxic ingredient.
+- **Why it hurts:** It forces players into tedious micro-management (manually discarding the item into lava or trash pits) during automated or large-scale potato harvesting, breaking the flow state of agricultural gameplay.
+- **The Logical Response:** Enable the Poisonous Potato to interact with existing vanilla blocks: allowing it to be placed in the Composter (with a fixed 65% success rate like regular potatoes) and used in the Brewing Stand as an alternative base to brew Potion of Poison.
+- **The Natural Flow:** Players no longer need to manage "forced trash." The item naturally integrates into the player's intuition regarding organic and toxic items without adding any bloated new mechanics or shifting the early-game balance.
+
+---
+
+## 12) Phantom: Void Insomnia (The End Dimension Scaling)
+
+- **The Vanilla Absurdity:** Vanilla tracks player insomnia globally based on the time passed since last entering a bed, punishing early-game Overworld builders with an aerial nuisance while gating the reward (Phantom Membrane) behind late-game utility.
+- **Why it hurts:** This mechanic turns the bed into a cheap, mandatory cheat tool to skip the night, ruining the flow state of nocturnal builders and hunters in the Overworld. Meanwhile, The End dimension remains completely devoid of aerial threats.
+- **The Logical Response:** Replace the global "time since last entered a bed" spawn condition with a single localized dimension check: "time continuously spent inside The End dimension during the current session."
+- **The Natural Flow:** The Overworld night is completely liberated for creative building and exploration. In The End—where beds violently explode by default to signal an environment of absolute wakefulness—the longer a player remains to harvest end-game resources, the more the dimension naturally scales its difficulty by spawning Phantoms as native apex predators of the void.
+
+---
+
+## 13) Acoustic Glass: The Subterranean Counterpart
+
+- **The Vanilla Absurdity:** Amethyst Shards and Echo Shards share an identical geological tier as raw crystal fragments under the ground. Amethyst can be crafted into Tinted Glass to block light, but Echo Shards—the ultimate manifestation of sound and vibration—have no visual counterpart to manipulate acoustics.
+- **Why it hurts:** Redstone engineers utilizing Sculk Sensors for wireless circuitry are forced to wrap their machinery in bulky, opaque Wool blocks. This creates massive visual pollution and destroys modern, clean architectural aesthetics in tech builds.
+- **The Logical Response:** Introduce a parallel crafting recipe: surround a standard Glass block with 4 Echo Shards to create Acoustic Glass.
+- **The Natural Flow:** Acoustic Glass is visually transparent but completely dampens 100% of all game vibrations attempting to pass through it. This directly mirrors the intuitive behavior of Tinted Glass:
+  $$\text{Amethyst Shard} + \text{Glass} \rightarrow \text{Tinted Glass (Blocks Light)}$$
+  $$\text{Echo Shard} + \text{Glass} \rightarrow \text{Acoustic Glass (Blocks Vibration)}$$
+  It provides an elegant, high-tier architectural solution for clean engineering layouts.
+
+---
+
+## 14) Sculk Catalyst: Return to Silence
+
+- **The Vanilla Absurdity:** The Deep Dark ecology operates on a defensive loop of agitation. However, if a player successfully conquers an Ancient City by destroying 100% of the natural Sculk Shriekers, the Sculk Catalyst continues to blindly spread useless Sculk blocks upon nearby mob deaths, completely ignoring the pacification of the biome.
+- **Why it hurts:** Defeating the most dangerous biome in the Overworld offers no long-term ecological reward. Once chests are looted, the Ancient City becomes a barren ghost town, and the finite Echo Shards run out globally, causing hoarding stagnation.
+- **The Logical Response:** Harness the true biological law of the Deep Dark: *Return to Silence*. If zero natural Sculk Shriekers remain within the operational radius of a Sculk Catalyst, the block stops spreading Sculk waste entirely and enters a condensation state.
+- **The Natural Flow:** When a mob dies near a pacified Catalyst, the raw soul energy (XP) is trapped and compressed inside its core. Upon accumulating enough energy, the Catalyst cracks open and drops 1–2 Echo Shards. If the absolute silence is broken by a missed Shrieker or industrial noise, the crystallization immediately halts. This transforms the Ancient City into a highly rewarding, late-game sanctuary that yields a renewable supply of Echo Shards through pure environmental mastery.
+
 ### Tweak D: Unbonded Duplicates
 - **The Vanilla Absurdity:** Duplication can create instant labor scale if all new Allays inherit full trust by default.
 - **The Logical Response:** New duplicates require explicit rebonding through music, preserving effort and relationship value.
