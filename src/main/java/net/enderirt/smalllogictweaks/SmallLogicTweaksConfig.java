@@ -84,16 +84,39 @@ public class SmallLogicTweaksConfig {
     public boolean ENABLE_POISONOUS_POTATO_BREWING = true;
 
     // ==========================================
-    // --- PHANTOM TWEAK CONFIGURATION ---
-    // ==========================================
-
-    // ==========================================
     // --- HYDRO-HARDENING TWEAK CONFIGURATION ---
     // ==========================================
     public String _comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
     public boolean ENABLE_HYDRO_HARDENING = true;
     public String _comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
     public boolean ENABLE_SPLASH_HARDENING = true;
+
+    // ==========================================
+    // --- PHANTOM TWEAK CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_END_PHANTOM = "Enable spawn phantom in the end instead of Overworld";
+    public boolean ENABLE_END_PHANTOM = true;
+
+    public String _comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
+    public int PHANTOM_CHECK_COOLDOWN = 1200;
+
+    public String _comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]";
+    public int PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
+
+    public String _comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
+    public int PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+
+    public String _comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
+    public int PHANTOM_MIN_COUNT = 1;
+
+    public String _comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
+    public int PHANTOM_MAX_COUNT = 4;
+
+    public String _comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
+    public int PHANTOM_MIN_SPAWN_HEIGHT = 20;
+
+    public String _comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
+    public int PHANTOM_MAX_SPAWN_HEIGHT = 35;
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
@@ -252,6 +275,14 @@ public class SmallLogicTweaksConfig {
         this._comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
         this._comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
         this._comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
+        this._comment_ENABLE_END_PHANTOM = "Enable or disable custom Phantom spawning logic in The End dimension.";
+        this._comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
+        this._comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 72000 / 6 in-game days]";
+        this._comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
+        this._comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
+        this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
+        this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
+        this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
@@ -277,6 +308,35 @@ public class SmallLogicTweaksConfig {
         if (this.DECAY_THRESHOLD < 1 || this.DECAY_THRESHOLD > 7) {
             LOGGER.error("Invalid value for 'DECAY_THRESHOLD' ({}). Must be between 1 and 7. Resetting to default: 6", this.DECAY_THRESHOLD);
             this.DECAY_THRESHOLD = 6;
+        }
+
+        // Khống chế tần suất kiểm tra tối thiểu là 1 giây (20 ticks) để tránh gây quá tải máy chủ
+        if (this.PHANTOM_CHECK_COOLDOWN < 20 || this.PHANTOM_CHECK_COOLDOWN > 12000) {
+            LOGGER.error("Invalid value for 'PHANTOM_SPAWN_CHECK_INTERVAL' ({}). Cannot be less than 20 ticks (1 second). Resetting to default: 1200", this.PHANTOM_CHECK_COOLDOWN);
+            this.PHANTOM_CHECK_COOLDOWN = 1200;
+        }
+
+        // Chặn lỗi số âm đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
+        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA < 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
+            this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
+        }
+
+        if (this.PHANTOM_THRESHOLD_POST_ELYTRA < 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
+            this.PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+        }
+
+        // Kiểm tra và khống chế giới hạn số lượng sinh quái
+        if (this.PHANTOM_MIN_COUNT < 1) this.PHANTOM_MIN_COUNT = 1;
+        if (this.PHANTOM_MAX_COUNT < this.PHANTOM_MIN_COUNT || this.PHANTOM_MAX_COUNT > 100) {
+            this.PHANTOM_MAX_COUNT = this.PHANTOM_MIN_COUNT;
+        }
+
+        // Kiểm tra và khống chế giới hạn độ cao sinh quái
+        if (this.PHANTOM_MIN_SPAWN_HEIGHT < 0) this.PHANTOM_MIN_SPAWN_HEIGHT = 0;
+        if (this.PHANTOM_MAX_SPAWN_HEIGHT < this.PHANTOM_MIN_SPAWN_HEIGHT || this.PHANTOM_MAX_SPAWN_HEIGHT > 320) {
+            this.PHANTOM_MAX_SPAWN_HEIGHT = this.PHANTOM_MIN_SPAWN_HEIGHT;
         }
     }
 }

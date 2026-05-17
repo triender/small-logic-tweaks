@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.stats.Stats;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -23,6 +24,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.registry.FabricPotionBrewingBuilder;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +62,7 @@ public class SmallLogicTweaksEvents {
         registerTimberTweak();
         registerPotatoTweaks();
         registerHydroHardeningTweak();
+        registerEndPhantomTweak();
         LOGGER.info(" Small logic Tweaks Mod register success!!");
     }
 
@@ -476,6 +482,111 @@ public class SmallLogicTweaksEvents {
                 }
             }
             return InteractionResult.PASS;
+        });
+    }
+
+    private static void registerEndPhantomTweak() {
+        ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> {
+            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+
+            if (origin.dimension() == Level.END) {
+                player.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                    LOGGER.info("[End-Phantom Debug] Reset Player stats: {} ", player.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)));
+                }
+            }
+        });
+
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+
+            if (oldPlayer.level().dimension() == Level.END) {
+                newPlayer.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+            }
+        });
+
+        ServerTickEvents.END_LEVEL_TICK.register(level -> {
+            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+            if (level.dimension() != Level.END) return;
+
+            if (!level.getGameRules().get(GameRules.SPAWN_PHANTOMS))
+                return;
+
+            var random = level.getRandom();
+
+            for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+                if (player.isSpectator() || player.isCreative()) continue;
+
+                if ((level.getGameTime() + player.getId()) % SmallLogicTweaksConfig.INSTANCE.PHANTOM_CHECK_COOLDOWN != 0) continue;
+
+                int timeSinceRest = player.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+
+                boolean hasElytra = player.getInventory().hasAnyMatching(stack -> stack.is(net.minecraft.world.item.Items.ELYTRA))
+                        || player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
+
+                int currentInsomniaThreshold = hasElytra
+                        ? SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
+                        : SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
+
+                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                    LOGGER.info("[End-Phantom Debug] Checking {}: Insomnia = {}|{} ticks. HasElytra: {}",
+                            player.getName().getString(), timeSinceRest, currentInsomniaThreshold, hasElytra);
+                }
+
+                if (timeSinceRest >= currentInsomniaThreshold) {
+                    int rollValue = random.nextInt(timeSinceRest);
+
+                    if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                        LOGGER.info("[End-Phantom Debug] Player {}. Roll value {}",
+                                player.getName().getString(), rollValue);
+                    }
+
+                    if (rollValue >= currentInsomniaThreshold) {
+                        int minCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_COUNT;
+                        int maxCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_COUNT;
+                        int phantomCount = minCount + random.nextInt((maxCount - minCount) + 1);
+
+                        net.minecraft.core.BlockPos playerPos = player.blockPosition();
+
+                        LOGGER.info("[End-Phantom] Player {} luckily have starting spawn {} Phantom.",
+                                player.getName().getString(), phantomCount);
+
+                        int minHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT;
+                        int maxHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT;
+                        int heightRange = (maxHeight - minHeight) + 1;
+
+                        for (int i = 0; i < phantomCount; i++) {
+                            int randomHeight = minHeight + random.nextInt(heightRange);
+                            net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
+
+                            boolean isValidSpawn = false;
+                            for (int attempt = 0; attempt < 10; attempt++) {
+                                if (level.isEmptyBlock(spawnPos) && level.isEmptyBlock(spawnPos.above())) {
+                                    isValidSpawn = true;
+                                    break;
+                                }
+                                spawnPos = spawnPos.above();
+                            }
+
+                            if (!isValidSpawn) {
+                                continue;
+                            }
+
+                            net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityType.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
+
+                            if (phantom != null) {
+                                phantom.setPos(spawnPos.getX() + 0.5D, (double) spawnPos.getY(), spawnPos.getZ() + 0.5D);
+
+                                phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
+                                level.addFreshEntityWithPassengers(phantom);
+
+                                LOGGER.info("[End-Phantom] Đã gọi sinh thành công Phantom thứ {} tại vị trí không gian: {}",
+                                        i + 1, spawnPos.toShortString());
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 }
