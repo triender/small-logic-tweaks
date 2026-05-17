@@ -318,13 +318,13 @@ public class SmallLogicTweaksConfig {
 
         // Chặn lỗi số âm đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
         if (this.PHANTOM_THRESHOLD_PRE_ELYTRA < 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
             this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
         }
 
         if (this.PHANTOM_THRESHOLD_POST_ELYTRA < 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
             LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
-            this.PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+            this.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
         }
 
         // Kiểm tra và khống chế giới hạn số lượng sinh quái

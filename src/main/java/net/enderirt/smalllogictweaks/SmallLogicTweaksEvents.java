@@ -548,8 +548,10 @@ public class SmallLogicTweaksEvents {
 
                         net.minecraft.core.BlockPos playerPos = player.blockPosition();
 
-                        LOGGER.info("[End-Phantom] Player {} luckily have starting spawn {} Phantom.",
-                                player.getName().getString(), phantomCount);
+                        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                            LOGGER.info("[End-Phantom] Player {} luckily have starting spawn {} Phantom.",
+                                    player.getName().getString(), phantomCount);
+                        }
 
                         int minHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT;
                         int maxHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT;
@@ -580,8 +582,10 @@ public class SmallLogicTweaksEvents {
                                 phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
                                 level.addFreshEntityWithPassengers(phantom);
 
-                                LOGGER.info("[End-Phantom] Đã gọi sinh thành công Phantom thứ {} tại vị trí không gian: {}",
-                                        i + 1, spawnPos.toShortString());
+                                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                                    LOGGER.info("[End-Phantom] spawn Phantom num {} at: {}",
+                                            i + 1, spawnPos.toShortString());
+                                }
                             }
                         }
                     }
