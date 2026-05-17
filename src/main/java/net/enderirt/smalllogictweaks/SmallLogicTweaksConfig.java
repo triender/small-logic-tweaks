@@ -76,6 +76,18 @@ public class SmallLogicTweaksConfig {
     public int DECAY_THRESHOLD = 6;
 
     // ==========================================
+    // --- POISONOUS POTATO TWEAK CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_POISONOUS_POTATO_COMPOST = "Enable using Poisonous potato with Composter";
+    public boolean ENABLE_POISONOUS_POTATO_COMPOST = true;
+    public String _comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
+    public boolean ENABLE_POISONOUS_POTATO_BREWING = true;
+
+    // ==========================================
+    // --- PHANTOM TWEAK CONFIGURATION ---
+    // ==========================================
+
+    // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
 
@@ -229,6 +241,8 @@ public class SmallLogicTweaksConfig {
         this._comment_MAX_LEAF_DISTANCE = "Maximum distance from the log to search for connected leaves (Vanilla default). NOT RECOMMENT TO CHANGE [Default: 7]";
         this._comment_MIN_LEAVES_FOR_TREE = "Minimum number of connected leaves required to validate a valid tree. Acts as a safety check for player houses. [Default: 4]";
         this._comment_DECAY_THRESHOLD = "Distance threshold for leaf decay. At 7 (Vanilla), leaves decay normally when completely disconnected. Lower values (1-6) force leaves to decay closer to the log. [Default: 6]";
+        this._comment_ENABLE_POISONOUS_POTATO_COMPOST = "Enable using Poisonous potato with Composter";
+        this._comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.

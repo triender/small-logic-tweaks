@@ -2,6 +2,7 @@ package net.enderirt.smalllogictweaks;
 
 import net.enderirt.smalllogictweaks.ModEnchants.Timber;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.registry.FabricRegistryBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
@@ -14,12 +15,14 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.registry.FabricPotionBrewingBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +34,7 @@ public class SmallLogicTweaksEvents {
     public static void register() {
         registerBoneMealTweak();
         registerTimberTweak();
+        registerPotatoTweaks();
         LOGGER.info(" Small logic Tweaks Mod register success!!");
     }
 
@@ -330,5 +334,22 @@ public class SmallLogicTweaksEvents {
         }
 
         debugLog("[Timber] Execution finished. Logs broken: {}", brokenLogsCount);
+    }
+
+    private static void registerPotatoTweaks() {
+        // Tweak 1: Sử dụng với Thùng ủ phân (Composter)
+        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
+            net.minecraft.world.level.block.ComposterBlock.COMPOSTABLES.put(Items.POISONOUS_POTATO, 0.65F);
+            debugLog("[Potato Tweak] Registered Poisonous Potato to Composter.");
+        }
+
+        // Tweak 2: Bột chế thuốc độc (Potion of Poison)
+        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
+            FabricPotionBrewingBuilder.BUILD.register(builder -> {
+                // Dùng phương thức addMix thông qua biến builder
+                builder.addMix(Potions.AWKWARD, Items.POISONOUS_POTATO, Potions.POISON);
+            });
+            debugLog("[Potato Tweak] Registered Poisonous Potato brewing recipe via Fabric API.");
+        }
     }
 }
