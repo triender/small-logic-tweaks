@@ -1,40 +1,126 @@
 # Small Logic Tweaks
 
-Small Logic Tweaks is a minimalist quality-of-life modification that seamlessly refines foundational survival mechanics through intuitive environmental interactions and balanced, immersive resource-gathering systems.
+**Minecraft logic is weird. This mod makes it feel consistent—one interaction at a time.**
 
-## ✨ Features
+Small Logic Tweaks is a lightweight Vanilla+ Fabric mod focused on intuitive mechanics that align with existing player behavior, without introducing tech progression, automation chains, or progression skips.
 
-### 🦴 Bone Meal Tweak
-* **Environment Interaction:** Apply Bone Meal directly to Dirt blocks to convert them into Grass Blocks.
-* **Biome Awareness:** Automatically generates Mycelium when used within Mushroom Fields biomes.
-* **Vanilla Integration:** Features native sound effects and particle systems for a seamless feel.
+## Project Goals
 
-### 🪓 Timber Enchantment
-* **Mechanic:** A specialized Axe enchantment that allows players to fell entire trees by breaking a single block.
-* **Harvest-Centric Logic:** Specifically designed for natural tree harvesting. The algorithm identifies a "tree" by detecting wood blocks in close proximity to **Natural Leaves** (blocks where `persistent=false`).
-* **Progression:** Enhances both utility and combat potency across 3 levels:
-    * **Level I:** 16-block limit, **+1.0** Attack Damage.
-    * **Level II:** 64-block limit, **+1.5** Attack Damage.
-    * **Level III:** 128-block limit, **+2.0** Attack Damage.
-* **Balance & Safety:** * **Efficiency Trade-off:** Mutually exclusive with the Efficiency enchantment. This creates a natural "safety buffer"—since the tool is slow for manual mining, it is unsuitable (and discouraging) for precise construction tasks where an Efficiency axe is standard.
-    * **Leaf Dependency:** The logic prioritizes natural leaf presence. **Caution:** If wooden structures are built directly adjacent to natural leaves (e.g., a treehouse), the mod will treat the structure as part of the tree.
-    * **Control:** Hold `Shift` to bypass the enchantment and mine normally.
+Vanilla Minecraft naturally encourages players to:
+- restore terrain
+- build utility spaces (kitchens, workshops)
+- clear forests
+- execute large-scale builds
 
-## ⚙️ Technical Information
-* **Platform:** Fabric
-* **Environment:** Required on both **Client** and **Server** for synchronized animations and logic.
-* **Status:** Early Beta.
+This mod targets friction points where default mechanics feel unintuitive, while preserving Vanilla pacing and effort.
 
-### ⚠️ Performance & Synchronization
-* **Latency Sensitivity:** High-latency environments (high ping) may encounter minor "ghost blocks" or visual desync during extensive Timber operations.
-* **Server Stress:** Processing a "Timber III" execution (up to 128 blocks) triggers a significant volume of simultaneous block updates. On high-population or low-end servers, this may result in temporary MSPT (milliseconds per tick) spikes.
-* **Version Parity:** Both client and server must run the exact same mod version to ensure enchantment levels, block-breaking logic, and particle effects remain perfectly synchronized.
+## Current Features
 
-## 📜 License
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+### Bone Meal: Instant Greenery
 
-## 🤝 Contribution & Feedback
-As a spontaneous passion project, suggestions for more logical tweaks are always welcome. Please report any issues or performance concerns via the GitHub Issue Tracker.
+Use Bone Meal directly on **Dirt** to bootstrap natural surface recovery.
 
----
-Note: Finally, an axe that understands that if it can "delete" a forest, it can certainly "delete" a skeleton. Balance restored.
+- **Instant Surface Conversion**: Dirt can be converted immediately to start natural spread.
+- **Biome-Aware Output**: In Mushroom biomes, Dirt converts to **Mycelium** instead of Grass.
+- **Vanilla-Consistent Feedback**: Uses native particles, sounds, and interaction flow.
+
+Design intent: remove the awkward dependency on transporting Silk Touch grass blocks just to begin restoration.
+
+### Timber
+
+Tree-felling logic optimized for forestry workflows.
+
+- Breaking the base log can fell the full connected natural tree.
+- Targeting is constrained by natural leaf-state checks to reduce accidental structure destruction.
+- Hold **Shift** to temporarily bypass Timber behavior for precise manual mining.
+- Timber tools receive a modest combat bonus for long harvesting sessions.
+
+Balance constraints:
+- larger trees require proportionally longer clearing time
+- Timber is intentionally incompatible with **Efficiency** to preserve precision-building tradeoffs
+- large cuts may transiently increase server load
+
+### Jungle Sustainability
+
+Jungle biome recovery support via adjusted sapling economics.
+
+- slightly improved Jungle Sapling drop behavior
+- stronger long-term renewability after extensive deforestation
+
+### Charcoal -> Black Dye
+
+Introduces a practical identity for Charcoal.
+
+- craft **Black Dye** directly from **Charcoal**
+- keeps recipe scope simple and Vanilla-adjacent
+
+## Design Philosophy
+
+Core principle:
+
+> Improve interaction flow without removing gameplay effort.
+
+Implementation constraints:
+- manual systems over automation
+- immersive interactions over excessive feature layering
+- support for Vanilla play patterns, not replacement of progression
+
+Tool identity is intentional:
+- **Efficiency** for precision building/mining
+- **Timber** for forestry-scale harvesting
+
+## Compatibility
+
+- Platform target: **Fabric**
+- Style target: Vanilla-like gameplay
+- Designed to be lightweight and minimally invasive
+- Intended to coexist with most QoL and world-generation mods
+- Multiplayer requires installation on both client and server for synchronized behavior
+
+## Roadmap (Planned / Investigating)
+
+The following concepts are being explored and may release in any order.
+
+### Hydro-Hardening
+- right-clicking Concrete Powder with a Water Bottle hardens it directly into Concrete
+- bottle-consumption behavior is planned to be explicit and balanced against manual building speed
+
+### Magma Kitchen
+- dropped raw food entities can enter a slow-cook state when resting on Magma Blocks
+- overexposure to heat beyond a burn threshold converts the food into a distinct burnt outcome (or removes the cooked output), depending on final balance tuning
+- exact cook and burn timings are intended to be configurable/tunable during balancing
+
+### Sawmill
+- improves plank and byproduct yield relative to baseline crafting recipes
+- improved decorative workflow support
+- potential future Fletching Table integration
+
+### Sniffer: Archaeological Flora
+- Sniffers can occasionally uncover mod-specific rare botanical relic items/seeds
+
+### Anvil: Structural Penalty
+- durability repairs no longer increase `RepairCost`
+- renaming no longer increases `RepairCost`
+- enchantment upgrades still scale long-term cost
+
+### Allay: Music & Memory
+- freed Allays (e.g., released from captivity structures) persist the UUID of the first releasing/interacting player as their bond reference
+- music interactions can register a persistent anchor location for nearby Allays
+- duplicated Allays require new bonding
+
+### Weightless Creatures
+- lightweight hovering mobs no longer break Turtle Eggs
+
+## Feedback & Contributions
+
+Suggestions for additional logical Vanilla-style tweaks are welcome.
+
+Please use the GitHub Issue Tracker for:
+- bug reports
+- balance concerns
+- compatibility issues
+- performance problems
+
+## License
+
+Licensed under the **MIT License**. See [LICENSE](LICENSE).
