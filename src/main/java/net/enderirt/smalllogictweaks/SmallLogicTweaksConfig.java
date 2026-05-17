@@ -117,6 +117,9 @@ public class SmallLogicTweaksConfig {
 
     public String _comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
     public int PHANTOM_MAX_SPAWN_HEIGHT = 35;
+
+    public String _comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
+    public int PHANTOM_MOB_CAP = 8;
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
@@ -283,6 +286,7 @@ public class SmallLogicTweaksConfig {
         this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
         this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
         this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
+        this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
@@ -312,31 +316,49 @@ public class SmallLogicTweaksConfig {
 
         // Khống chế tần suất kiểm tra tối thiểu là 1 giây (20 ticks) để tránh gây quá tải máy chủ
         if (this.PHANTOM_CHECK_COOLDOWN < 20 || this.PHANTOM_CHECK_COOLDOWN > 12000) {
-            LOGGER.error("Invalid value for 'PHANTOM_SPAWN_CHECK_INTERVAL' ({}). Cannot be less than 20 ticks (1 second). Resetting to default: 1200", this.PHANTOM_CHECK_COOLDOWN);
+            LOGGER.error("Invalid value for 'PHANTOM_CHECK_COOLDOWN' ({}). Must be between 20 and 12000. Resetting to default: 1200", this.PHANTOM_CHECK_COOLDOWN);
             this.PHANTOM_CHECK_COOLDOWN = 1200;
         }
 
-        // Chặn lỗi số âm đối với thời gian mất ngủ yêu cầu để sinh Phantom và tối đa là 100 ngày
+        // Khống chế thời gian mất ngủ yêu cầu (1 tick đến 100 ngày).
         if (this.PHANTOM_THRESHOLD_PRE_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
+            LOGGER.error("Invalid value for 'PHANTOM_THRESHOLD_PRE_ELYTRA' ({}). Must be between 1 and 2400000. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
             this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
         }
 
         if (this.PHANTOM_THRESHOLD_POST_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Cannot be negative. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
+            LOGGER.error("Invalid value for 'PHANTOM_THRESHOLD_POST_ELYTRA' ({}). Must be between 1 and 2400000. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
             this.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
         }
 
-        // Kiểm tra và khống chế giới hạn số lượng sinh quái
-        if (this.PHANTOM_MIN_COUNT < 1) this.PHANTOM_MIN_COUNT = 1;
+        // Khống chế giới hạn sinh quái thấp nhất.
+        if (this.PHANTOM_MIN_COUNT < 1 || this.PHANTOM_MIN_COUNT > 100) {
+            LOGGER.error("Invalid value for 'PHANTOM_MIN_COUNT' ({}). Must be between 1 and 100. Resetting to default: 1", this.PHANTOM_MIN_COUNT);
+            this.PHANTOM_MIN_COUNT = 1;
+        }
+
+        // Khống chế giới hạn sinh quái cao nhất (phải >= số tối thiểu và <= 100).
         if (this.PHANTOM_MAX_COUNT < this.PHANTOM_MIN_COUNT || this.PHANTOM_MAX_COUNT > 100) {
+            LOGGER.error("Invalid value for 'PHANTOM_MAX_COUNT' ({}). Must be between {} and 100. Resetting to match min count: {}", this.PHANTOM_MAX_COUNT, this.PHANTOM_MIN_COUNT, this.PHANTOM_MIN_COUNT);
             this.PHANTOM_MAX_COUNT = this.PHANTOM_MIN_COUNT;
         }
 
-        // Kiểm tra và khống chế giới hạn độ cao sinh quái
-        if (this.PHANTOM_MIN_SPAWN_HEIGHT < 0) this.PHANTOM_MIN_SPAWN_HEIGHT = 0;
+        // Khống chế độ cao xuất hiện thấp nhất (từ 0 đến 320).
+        if (this.PHANTOM_MIN_SPAWN_HEIGHT < 0 || this.PHANTOM_MIN_SPAWN_HEIGHT > 320) {
+            LOGGER.error("Invalid value for 'PHANTOM_MIN_SPAWN_HEIGHT' ({}). Must be between 0 and 320. Resetting to default: 20", this.PHANTOM_MIN_SPAWN_HEIGHT);
+            this.PHANTOM_MIN_SPAWN_HEIGHT = 20;
+        }
+
+        // Khống chế độ cao xuất hiện lớn nhất (phải >= độ cao tối thiểu và <= 320).
         if (this.PHANTOM_MAX_SPAWN_HEIGHT < this.PHANTOM_MIN_SPAWN_HEIGHT || this.PHANTOM_MAX_SPAWN_HEIGHT > 320) {
+            LOGGER.error("Invalid value for 'PHANTOM_MAX_SPAWN_HEIGHT' ({}). Must be between {} and 320. Resetting to match min height: {}", this.PHANTOM_MAX_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT);
             this.PHANTOM_MAX_SPAWN_HEIGHT = this.PHANTOM_MIN_SPAWN_HEIGHT;
+        }
+
+        // Khống chế giới hạn quái vật cục bộ (Mob Cap).
+        if (this.PHANTOM_MOB_CAP < 0 || this.PHANTOM_MOB_CAP > 100) {
+            LOGGER.error("Invalid value for 'PHANTOM_MOB_CAP' ({}). Must be between 0 and 100. Resetting to default: 8", this.PHANTOM_MOB_CAP);
+            this.PHANTOM_MOB_CAP = 8;
         }
     }
 }

@@ -528,9 +528,21 @@ public class SmallLogicTweaksEvents {
                         ? SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
                         : SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
 
-                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
-                    LOGGER.info("[End-Phantom Debug] Checking {}: Insomnia = {}|{} ticks. HasElytra: {}",
-                            player.getName().getString(), timeSinceRest, currentInsomniaThreshold, hasElytra);
+                // Game tự dọn dẹp các Phantom ở khoảng cách > 128 khối.
+                // Mod chỉ đếm số lượng Phantom hiện đang áp sát người chơi trong vùng 128 khối.
+                var nearbyPhantoms = level.getEntitiesOfClass(
+                        net.minecraft.world.entity.monster.Phantom.class,
+                        player.getBoundingBox().inflate(128.0, 128.0, 128.0)
+                );
+
+                // Giới hạn cục bộ (Local Cap) để không sinh quá tải
+                int localCap = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MOB_CAP;
+                if (nearbyPhantoms.size() >= localCap) {
+                    if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                        LOGGER.info("[End-Phantom Debug] Hit local mob cap ({}/{}). Skipping spawn for {}.",
+                                nearbyPhantoms.size(), localCap, player.getName().getString());
+                    }
+                    continue;
                 }
 
                 if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
@@ -544,7 +556,10 @@ public class SmallLogicTweaksEvents {
                     if (rollValue >= currentInsomniaThreshold) {
                         int minCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_COUNT;
                         int maxCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_COUNT;
-                        int phantomCount = minCount + random.nextInt((maxCount - minCount) + 1);
+
+                        int desiredSpawnCount = minCount + random.nextInt((maxCount - minCount) + 1);
+                        int availableSlots = localCap - nearbyPhantoms.size();
+                        int phantomCount = Math.min(desiredSpawnCount, availableSlots);
 
                         net.minecraft.core.BlockPos playerPos = player.blockPosition();
 
@@ -563,7 +578,13 @@ public class SmallLogicTweaksEvents {
 
                             boolean isValidSpawn = false;
                             for (int attempt = 0; attempt < 10; attempt++) {
-                                if (level.isEmptyBlock(spawnPos) && level.isEmptyBlock(spawnPos.above())) {
+                                // Tạo hộp va chạm ảo tại vị trí dự kiến sinh ra
+                                net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityType.PHANTOM
+                                        .getDimensions()
+                                        .makeBoundingBox(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
+
+                                // Kiểm tra xem hộp va chạm này có đè lên bất kỳ khối rắn nào trong thế giới không
+                                if (level.noCollision(spawnBox)) {
                                     isValidSpawn = true;
                                     break;
                                 }
@@ -574,6 +595,7 @@ public class SmallLogicTweaksEvents {
                                 continue;
                             }
 
+                            // Khởi tạo thực thể với cờ NATURAL đảm bảo chúng tuân thủ 100% luật Despawn tự nhiên
                             net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityType.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
 
                             if (phantom != null) {
