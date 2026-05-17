@@ -104,7 +104,7 @@ public class SmallLogicTweaksConfig {
     public int PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
 
     public String _comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
-    public int PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+    public int PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
 
     public String _comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
     public int PHANTOM_MIN_COUNT = 1;
@@ -324,8 +324,8 @@ public class SmallLogicTweaksConfig {
         }
 
         if (this.PHANTOM_THRESHOLD_POST_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Must be positive. Resetting to default: 144000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
-            this.PHANTOM_THRESHOLD_POST_ELYTRA = 144000;
+            LOGGER.error("Invalid value for 'PHANTOM_INSOMNIA_TICKS' ({}). Must be positive. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
+            this.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
         }
 
         // Kiểm tra và khống chế giới hạn số lượng sinh quái
