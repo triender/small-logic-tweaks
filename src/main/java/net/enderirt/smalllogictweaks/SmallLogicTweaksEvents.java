@@ -31,10 +31,32 @@ import java.util.*;
 
 public class SmallLogicTweaksEvents {
     private static final Logger LOGGER = LoggerFactory.getLogger("small_logic_tweaks");
+
+    // Ánh xạ 16 màu của Bột Bê Tông sang Khối Bê Tông tương ứng
+    public static final Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> POWDER_TO_CONCRETE = Map.ofEntries(
+            Map.entry(net.minecraft.world.level.block.Blocks.WHITE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.WHITE_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.ORANGE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.ORANGE_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.MAGENTA_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.MAGENTA_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.LIGHT_BLUE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIGHT_BLUE_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.YELLOW_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.YELLOW_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.LIME_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIME_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.PINK_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.PINK_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.GRAY_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.GRAY_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.LIGHT_GRAY_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIGHT_GRAY_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.CYAN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.CYAN_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.PURPLE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.PURPLE_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.BLUE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BLUE_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.BROWN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BROWN_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.GREEN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.GREEN_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.RED_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.RED_CONCRETE),
+            Map.entry(net.minecraft.world.level.block.Blocks.BLACK_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BLACK_CONCRETE)
+    );
+
     public static void register() {
         registerBoneMealTweak();
         registerTimberTweak();
         registerPotatoTweaks();
+        registerHydroHardeningTweak();
         LOGGER.info(" Small logic Tweaks Mod register success!!");
     }
 
@@ -75,12 +97,14 @@ public class SmallLogicTweaksEvents {
                     }
 
                     // Chọn khối đích dựa trên khối nguồn thực tế xung quanh (Ưu tiên tính logic thực tế)
-                    if (hasMyceliumNeighbor && world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)) {
-                        newState = Blocks.MYCELIUM.defaultBlockState();
-                    } else if (hasGrassNeighbor) {
-                        newState = Blocks.GRASS_BLOCK.defaultBlockState();
-                    } else if (hasMyceliumNeighbor) {
-                        newState = Blocks.MYCELIUM.defaultBlockState();
+                    if (hasMyceliumNeighbor || hasGrassNeighbor) {
+                        if (world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)) {
+                            // Biome Nấm ưu tiên Khuẩn ty, nếu không có Khuẩn ty lân cận thì mới thành Cỏ
+                            newState = hasMyceliumNeighbor ? Blocks.MYCELIUM.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
+                        } else {
+                            // Các Biome thường ưu tiên Cỏ, nếu không có Cỏ lân cận thì mới thành Khuẩn ty
+                            newState = hasGrassNeighbor ? Blocks.GRASS_BLOCK.defaultBlockState() : Blocks.MYCELIUM.defaultBlockState();
+                        }
                     }
 
                     // Nếu bật REQUIRE_NEIGHBOR_SOURCE nhưng xung quanh hoàn toàn không có cỏ/khuẩn ty -> Hủy bỏ
@@ -119,17 +143,6 @@ public class SmallLogicTweaksEvents {
 
     public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
 
-    // Lớp chứa cấu hình - Dễ dàng thay thế hoặc liên kết với Mod Config sau này
-    public static class TimberConfig {
-        // Cờ bật/tắt tính năng Fast Leaf Decay tích hợp
-        public static boolean ENABLE_AUTO_LEAVES_DECAY = true;
-
-        // Các Magic Numbers được tách ra
-        public static int MAX_LOG_HORIZONTAL_RADIUS = 5; // Giới hạn quét gỗ theo trục X/Z
-        public static int MAX_LEAF_DISTANCE = 7;         // Bán kính tối đa từ thân cây đến lá
-        public static int MIN_LEAVES_FOR_TREE = 4;       // Số lá tối thiểu để xác nhận là một cái cây
-        public static int DECAY_THRESHOLD = 6;
-    }
     public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
     // Lưu trữ kết quả phân tích của khối đang đào hiện tại
@@ -230,8 +243,8 @@ public class SmallLogicTweaksEvents {
                         BlockPos neighbor = current.offset(x, y, z);
 
                         // Sử dụng biến cấu hình thay vì Magic Number
-                        if (Math.abs(neighbor.getX() - startPos.getX()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS ||
-                                Math.abs(neighbor.getZ() - startPos.getZ()) > TimberConfig.MAX_LOG_HORIZONTAL_RADIUS) continue;
+                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
+                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
 
                         if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
                             visitedLogs.add(neighbor);
@@ -258,7 +271,7 @@ public class SmallLogicTweaksEvents {
             int currentDist = leafDistance.get(current);
 
             // Sử dụng biến cấu hình khoảng cách lá
-            if (currentDist >= TimberConfig.MAX_LEAF_DISTANCE) continue;
+            if (!(currentDist < SmallLogicTweaksConfig.INSTANCE.MAX_LEAF_DISTANCE)) continue;
 
             for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
                 BlockPos neighbor = current.relative(dir);
@@ -277,7 +290,7 @@ public class SmallLogicTweaksEvents {
         }
 
         // Sử dụng biến cấu hình điều kiện lá tối thiểu
-        boolean isTree = !logs.isEmpty() && leaves.size() >= TimberConfig.MIN_LEAVES_FOR_TREE;
+        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.INSTANCE.MIN_LEAVES_FOR_TREE;
 
         return new TimberResult(isTree, logs, leaves, levelEnchant);
     }
@@ -299,7 +312,7 @@ public class SmallLogicTweaksEvents {
         }
 
         // 2. ÉP GAME LOGIC XỬ LÝ LÁ (Tối ưu hóa In-Memory)
-        if (TimberConfig.ENABLE_AUTO_LEAVES_DECAY) {
+        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
 
             // Khởi tạo không gian RAM để lưu trữ khoảng cách tính toán
             Map<BlockPos, Integer> virtualDistances = new HashMap<>();
@@ -357,7 +370,7 @@ public class SmallLogicTweaksEvents {
                 if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
                     int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
 
-                    if (finalDistance >= TimberConfig.DECAY_THRESHOLD) {
+                    if (finalDistance >= SmallLogicTweaksConfig.INSTANCE.DECAY_THRESHOLD) {
                         // Lá đạt ngưỡng: Thực hiện phá khối
                         level.destroyBlock(leafPos, true);
                     } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
@@ -386,5 +399,83 @@ public class SmallLogicTweaksEvents {
             });
             debugLog("[Potato Tweak] Registered Poisonous Potato brewing recipe via Fabric API.");
         }
+    }
+
+    public static boolean tryHardenConcrete(net.minecraft.world.level.Level world, net.minecraft.core.BlockPos pos) {
+        BlockState state = world.getBlockState(pos);
+        net.minecraft.world.level.block.Block hardenedBlock = POWDER_TO_CONCRETE.get(state.getBlock());
+
+        if (hardenedBlock != null) {
+            world.setBlockAndUpdate(pos, hardenedBlock.defaultBlockState());
+            if (world instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                // Tạo hiệu ứng hạt khói/nước tại vị trí khối được hóa cứng
+                serverLevel.sendParticles(
+                        net.minecraft.core.particles.ParticleTypes.SPLASH,
+                        pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
+                        5, 0.25, 0.25, 0.25, 0.05
+                );
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static void registerHydroHardeningTweak() {
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            // Chỉ bỏ qua chế độ Khán giả và kiểm tra cấu hình ngay từ đầu
+            if (player.isSpectator() || !SmallLogicTweaksConfig.INSTANCE.ENABLE_HYDRO_HARDENING) {
+                return InteractionResult.PASS;
+            }
+
+            ItemStack stack = player.getItemInHand(hand);
+            BlockPos pos = hitResult.getBlockPos();
+            BlockState state = world.getBlockState(pos);
+
+            // Xác minh vật phẩm trên tay là Thuốc (Potion)
+            if (stack.is(Items.POTION)) {
+                // Đọc Component dữ liệu để xem đây có phải là chai Nước cất (Water) không
+                var potionContents = stack.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+
+                if (potionContents != null && potionContents.is(net.minecraft.world.item.alchemy.Potions.WATER)) {
+
+                    // Tra cứu xem khối đang tương tác có nằm trong từ điển Bột Bê Tông không
+                    net.minecraft.world.level.block.Block hardenedBlock = POWDER_TO_CONCRETE.get(state.getBlock());
+
+                    if (hardenedBlock != null) {
+                        // ĐỒNG BỘ CLIENT-SIDE (QUAN TRỌNG):
+                        // Trả về SUCCESS ở Client để chặn đứng hành vi mặc định (uống nước)
+                        if (world.isClientSide()) {
+                            return InteractionResult.SUCCESS;
+                        }
+
+                        // --- LOGIC PHÍA SERVER ---
+                        // 1. Cập nhật khối thành Bê tông đặc
+                        world.setBlockAndUpdate(pos, hardenedBlock.defaultBlockState());
+
+                        // 2. Phát âm thanh kết hợp: Tiếng đổ nước và tiếng dọn chai
+                        world.playSound(null, pos, SoundEvents.GENERIC_SPLASH, SoundSource.BLOCKS, 0.5f, 1.0f);
+                        world.playSound(null, pos, SoundEvents.BOTTLE_EMPTY, SoundSource.BLOCKS, 1.0f, 1.0f);
+
+                        // 3. Xử lý trả lại Chai Thủy Tinh rỗng (Nếu không phải chế độ Sáng tạo)
+                        if (!player.getAbilities().instabuild) {
+                            ItemStack glassBottle = new ItemStack(Items.GLASS_BOTTLE);
+                            stack.shrink(1); // Giảm đi 1 bình nước
+
+                            if (stack.isEmpty()) {
+                                // Nếu trên tay chỉ có đúng 1 bình, thay trực tiếp bằng chai rỗng
+                                player.setItemInHand(hand, glassBottle);
+                            } else if (!player.getInventory().add(glassBottle)) {
+                                // Nếu hành trang đầy, vứt chai rỗng xuống đất
+                                player.drop(glassBottle, false);
+                            }
+                        }
+
+                        debugLog("[Hydro-Hardening] Converted Concrete Powder at {}", pos.toShortString());
+                        return InteractionResult.SUCCESS;
+                    }
+                }
+            }
+            return InteractionResult.PASS;
+        });
     }
 }

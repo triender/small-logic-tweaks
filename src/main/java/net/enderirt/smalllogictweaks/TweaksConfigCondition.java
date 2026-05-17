@@ -37,8 +37,10 @@ public record TweaksConfigCondition(String key) implements ResourceCondition {
     // Tùy thuộc vào phiên bản Fabric, tham số ở đây có thể là RegistryInfoLookup hoặc HolderLookup.Provider
     @Override
     public boolean test(RegistryOps.RegistryInfoLookup registryLookup) {
-        if ("charcoal_dye".equals(this.key)) return SmallLogicTweaksConfig.INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
-        if ("jungle_leaves".equals(this.key)) return SmallLogicTweaksConfig.INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
-        return false;
+        return switch (this.key) {
+            case "charcoal_dye" -> SmallLogicTweaksConfig.INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
+            case "jungle_leaves" -> SmallLogicTweaksConfig.INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
+            default -> false;
+        };
     }
 }

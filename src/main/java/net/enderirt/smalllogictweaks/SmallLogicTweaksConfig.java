@@ -88,6 +88,13 @@ public class SmallLogicTweaksConfig {
     // ==========================================
 
     // ==========================================
+    // --- HYDRO-HARDENING TWEAK CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
+    public boolean ENABLE_HYDRO_HARDENING = true;
+    public String _comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
+    public boolean ENABLE_SPLASH_HARDENING = true;
+    // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
 
@@ -243,10 +250,12 @@ public class SmallLogicTweaksConfig {
         this._comment_DECAY_THRESHOLD = "Distance threshold for leaf decay. At 7 (Vanilla), leaves decay normally when completely disconnected. Lower values (1-6) force leaves to decay closer to the log. [Default: 6]";
         this._comment_ENABLE_POISONOUS_POTATO_COMPOST = "Enable using Poisonous potato with Composter";
         this._comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
+        this._comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
+        this._comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
-        if (this.MAX_LOG_HORIZONTAL_RADIUS < 1 || this.MAX_LOG_HORIZONTAL_RADIUS > 15) {
+        if (this.MAX_LOG_HORIZONTAL_RADIUS < 1 || this.MAX_LOG_HORIZONTAL_RADIUS > 8) {
             LOGGER.error("Invalid value for 'MAX_LOG_HORIZONTAL_RADIUS' ({}). Must be between 1 and 15. Resetting to default: 5", this.MAX_LOG_HORIZONTAL_RADIUS);
             this.MAX_LOG_HORIZONTAL_RADIUS = 5; // Ép chỉ số lỗi quay về giá trị an toàn mặc định
         }

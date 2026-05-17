@@ -3,7 +3,8 @@
 	"package": "net.enderirt.smalllogictweaks.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"TimberMiningSpeedMixin"
+		"TimberMiningSpeedMixin",
+		"ThrownPotionMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
