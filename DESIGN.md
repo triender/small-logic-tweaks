@@ -102,6 +102,10 @@ Behavioral arc:
 - **The Player's Instinct:** Players want a gentle way to park companions without re-caging what they rescued.
 - **The Natural Flow:** Music becomes a lore-consistent anchor that invites Allays to stay at intentional stations.
 
+### Tweak D: Unbonded Duplicates
+- **The Vanilla Absurdity:** Duplication can create instant labor scale if all new Allays inherit full trust by default.
+- **The Logical Response:** New duplicates require explicit rebonding through music, preserving effort and relationship value.
+- 
 ## 11) Poisonous Potato: Organic Loop Integration
 
 - **The Vanilla Absurdity:** Vanilla Minecraft treats the Poisonous Potato as an absolute dead-end item. It cannot be eaten safely, cannot be baked, cannot be composted, and cannot be used in brewing, creating a systemic double standard where it fails both as organic waste and as a toxic ingredient.
@@ -139,6 +143,4 @@ Behavioral arc:
 - **The Logical Response:** Harness the true biological law of the Deep Dark: *Return to Silence*. If zero natural Sculk Shriekers remain within the operational radius of a Sculk Catalyst, the block stops spreading Sculk waste entirely and enters a condensation state.
 - **The Natural Flow:** When a mob dies near a pacified Catalyst, the raw soul energy (XP) is trapped and compressed inside its core. Upon accumulating enough energy, the Catalyst cracks open and drops 1–2 Echo Shards. If the absolute silence is broken by a missed Shrieker or industrial noise, the crystallization immediately halts. This transforms the Ancient City into a highly rewarding, late-game sanctuary that yields a renewable supply of Echo Shards through pure environmental mastery.
 
-### Tweak D: Unbonded Duplicates
-- **The Vanilla Absurdity:** Duplication can create instant labor scale if all new Allays inherit full trust by default.
-- **The Logical Response:** New duplicates require explicit rebonding through music, preserving effort and relationship value.
+
