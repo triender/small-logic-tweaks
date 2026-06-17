@@ -40,12 +40,12 @@ public class Gametest {
     @GameTest(maxTicks = 100)
     public void testConcreteHardening(GameTestHelper helper) {
         BlockPos targetPos = new BlockPos(1, 2, 1);
-        helper.setBlock(targetPos, Blocks.RED_CONCRETE_POWDER);
+        helper.setBlock(targetPos, Blocks.CONCRETE_POWDER.red());
 
         boolean hasHardened = SmallLogicTweaksEvents.tryHardenConcrete(helper.getLevel(), helper.absolutePos(targetPos));
 
         helper.assertTrue(hasHardened, "Hàm tryHardenConcrete phải trả về true");
-        helper.assertBlockPresent(Blocks.RED_CONCRETE, targetPos);
+        helper.assertBlockPresent(Blocks.CONCRETE.red(), targetPos);
 
         helper.succeed();
     }
@@ -276,7 +276,7 @@ public class Gametest {
         // 1. Tạo một mặt sàn Bột Bê Tông Đỏ 3x3
         for (int x = 0; x <= 2; x++) {
             for (int z = 0; z <= 2; z++) {
-                helper.setBlock(new BlockPos(x, 2, z), Blocks.RED_CONCRETE_POWDER);
+                helper.setBlock(new BlockPos(x, 2, z), Blocks.CONCRETE_POWDER.red());
             }
         }
 
@@ -289,7 +289,7 @@ public class Gametest {
         waterSplash.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new net.minecraft.world.item.alchemy.PotionContents(Potions.WATER));
 
         // 2. Sinh ra thực thể rơi tự do
-        AbstractThrownPotion potionEntity = new AbstractThrownPotion(EntityType.SPLASH_POTION, helper.getLevel()) {
+        AbstractThrownPotion potionEntity = new AbstractThrownPotion(net.minecraft.world.entity.EntityTypes.SPLASH_POTION, helper.getLevel()) {
             @Override
             protected void onHitAsPotion(net.minecraft.server.level.ServerLevel level, ItemStack potionItem, HitResult hitResult) {
                 // Để trống để bỏ qua hiệu ứng lan tỏa của Vanilla, chỉ tập trung kiểm thử Mixin của bạn
@@ -314,14 +314,14 @@ public class Gametest {
         // 3. Đợi thực thể chạm đất và kích hoạt vòng lặp đánh giá
         helper.succeedWhen(() -> {
             // Theo logic Mixin, khối bị ném trúng trực tiếp (Direct Hit) phải có tỷ lệ hóa cứng là 100%
-            helper.assertTrue(helper.getBlockState(centerPos).is(Blocks.RED_CONCRETE),
+            helper.assertTrue(helper.getBlockState(centerPos).is(Blocks.CONCRETE.red()),
                     "Thuật toán AABB lỗi: Khối tâm điểm (Direct Hit) không được hóa cứng 100%.");
 
             // Kiểm tra các khối xung quanh, do tỷ lệ lan truyền là 40% (0.4f), ít nhất phải có 1 khối bị hóa cứng
             int hardenedCount = 0;
             for (int x = 0; x <= 2; x++) {
                 for (int z = 0; z <= 2; z++) {
-                    if (helper.getBlockState(new BlockPos(x, 2, z)).is(Blocks.RED_CONCRETE)) {
+                    if (helper.getBlockState(new BlockPos(x, 2, z)).is(Blocks.CONCRETE.red())) {
                         hardenedCount++;
                     }
                 }
@@ -349,12 +349,12 @@ public class Gametest {
             // 1. Khôi phục lại mảng Bột Bê Tông 3x3 cho vòng lặp mới
             for (int x = 0; x <= 2; x++) {
                 for (int z = 0; z <= 2; z++) {
-                    helper.setBlock(new BlockPos(x, 2, z), Blocks.RED_CONCRETE_POWDER);
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.CONCRETE_POWDER.red());
                 }
             }
 
             // 2. Khởi tạo một thực thể ảo mới
-            AbstractThrownPotion dummyPotion = new AbstractThrownPotion(EntityType.SPLASH_POTION, helper.getLevel()) {
+            AbstractThrownPotion dummyPotion = new AbstractThrownPotion(net.minecraft.world.entity.EntityTypes.SPLASH_POTION, helper.getLevel()) {
                 @Override
                 protected void onHitAsPotion(net.minecraft.server.level.ServerLevel level, ItemStack potionItem, net.minecraft.world.phys.HitResult hitResult) {}
                 @Override
@@ -378,7 +378,7 @@ public class Gametest {
 
                     // Bỏ qua khối tâm vì nó luôn đạt 100% hóa cứng, ta chỉ đếm xác suất lan truyền
                     if (!currentPos.equals(centerPos)) {
-                        if (helper.getBlockState(currentPos).is(Blocks.RED_CONCRETE)) {
+                        if (helper.getBlockState(currentPos).is(Blocks.CONCRETE.red())) {
                             totalHardened++;
                         }
                     }

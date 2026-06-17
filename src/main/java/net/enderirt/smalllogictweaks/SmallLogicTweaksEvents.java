@@ -41,25 +41,15 @@ import java.util.*;
 public class SmallLogicTweaksEvents {
     private static final Logger LOGGER = LoggerFactory.getLogger("small_logic_tweaks");
 
-    // Ánh xạ 16 màu của Bột Bê Tông sang Khối Bê Tông tương ứng
-    public static final Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> POWDER_TO_CONCRETE = Map.ofEntries(
-            Map.entry(net.minecraft.world.level.block.Blocks.WHITE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.WHITE_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.ORANGE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.ORANGE_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.MAGENTA_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.MAGENTA_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.LIGHT_BLUE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIGHT_BLUE_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.YELLOW_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.YELLOW_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.LIME_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIME_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.PINK_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.PINK_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.GRAY_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.GRAY_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.LIGHT_GRAY_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.LIGHT_GRAY_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.CYAN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.CYAN_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.PURPLE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.PURPLE_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.BLUE_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BLUE_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.BROWN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BROWN_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.GREEN_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.GREEN_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.RED_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.RED_CONCRETE),
-            Map.entry(net.minecraft.world.level.block.Blocks.BLACK_CONCRETE_POWDER, net.minecraft.world.level.block.Blocks.BLACK_CONCRETE)
-    );
+    // Ánh xạ 16 màu của Bột Bê Tông sang Khối Bê Tông tương ứng sử dụng ColorCollection mới của 26.2
+    public static final Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> POWDER_TO_CONCRETE;
+    static {
+        Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> map = new HashMap<>();
+        for (net.minecraft.world.item.DyeColor color : net.minecraft.world.item.DyeColor.values()) {
+            map.put(net.minecraft.world.level.block.Blocks.CONCRETE_POWDER.pick(color), net.minecraft.world.level.block.Blocks.CONCRETE.pick(color));
+        }
+        POWDER_TO_CONCRETE = Map.copyOf(map);
+    }
 
     public static void register() {
         registerBoneMealTweak();
@@ -592,7 +582,7 @@ public class SmallLogicTweaksEvents {
                     // Kiểm tra va chạm để spawn an toàn
                     boolean isValidSpawn = false;
                     for (int attempt = 0; attempt < 10; attempt++) {
-                        net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityType.PHANTOM
+                        net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityTypes.PHANTOM
                                 .getDimensions()
                                 .makeBoundingBox(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
 
@@ -605,7 +595,7 @@ public class SmallLogicTweaksEvents {
 
                     if (!isValidSpawn) continue;
 
-                    net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityType.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
+                    net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityTypes.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
                     if (phantom != null) {
                         phantom.setPos(spawnPos.getX() + 0.5D, (double) spawnPos.getY(), spawnPos.getZ() + 0.5D);
                         phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
