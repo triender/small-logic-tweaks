@@ -1,6 +1,7 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
+	id 'jacoco'
 }
 
 version = project.mod_version
@@ -116,7 +117,7 @@ loom {
 	}
 }
 
-test{
+test {
 	useJUnitPlatform()
 }
 
@@ -126,5 +127,21 @@ tasks.named('test') {
 	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
 	testLogging {
 		events "passed", "skipped", "failed"
+	}
+}
+
+jacoco {
+	toolVersion = "0.8.12"
+}
+
+// Áp dụng Jacoco cho task chạy GameTest Server để đo độ phủ thực tế trong game
+// jacoco.applyTo(tasks.named('runGameTestServer').get())
+
+jacocoTestReport {
+	dependsOn test
+	executionData fileTree(layout.buildDirectory).include("jacoco/*.exec")
+	reports {
+		xml.required = true
+		html.required = true
 	}
 }
