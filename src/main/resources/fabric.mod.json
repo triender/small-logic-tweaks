@@ -19,8 +19,15 @@
 		"main": [
 			"net.enderirt.smalllogictweaks.SmallLogicTweaks"
 		],
+		"client": [
+			"net.enderirt.smalllogictweaks.SmallLogicTweaksClient"
+		],
 		"fabric-datagen": [
 			"net.enderirt.smalllogictweaks.SmallLogicTweaksDataGenerator"
+		],
+		"fabric-gametest": [
+			"net.enderirt.smalllogictweaks.gametest.Gametest",
+			"net.enderirt.smalllogictweaks.gametest.LootTableGameTest"
 		]
 	},
 	"mixins": [

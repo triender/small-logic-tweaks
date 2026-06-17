@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "fabric:load_conditions": [
+    {
+      "condition": "small_logic_tweaks:config_flag",
+      "key": "coal_dye"
+    }
+  ],
+  "ingredients": [
+    "minecraft:coal"
+  ],
+  "result": {
+    "id": "minecraft:black_dye",
+    "count": 1
+  }
+}

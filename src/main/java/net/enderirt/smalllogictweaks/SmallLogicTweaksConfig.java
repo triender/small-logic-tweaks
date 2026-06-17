@@ -42,6 +42,9 @@ public class SmallLogicTweaksConfig {
     public String _comment_ENABLE_CHARCOAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Charcoal.";
     public boolean ENABLE_CHARCOAL_TO_BLACK_DYE = true;
 
+    public String _comment_ENABLE_COAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Coal.";
+    public boolean ENABLE_COAL_TO_BLACK_DYE = false;
+
     public String _comment_ENABLE_JUNGLE_SUSTAINABILITY = "Increase the drop rate of Jungle Saplings from Jungle Leaves.";
     public boolean ENABLE_JUNGLE_SUSTAINABILITY = true;
 
@@ -60,6 +63,9 @@ public class SmallLogicTweaksConfig {
     // ==========================================
     // --- TIMBER TWEAK CONFIGURATION ---
     // ==========================================
+    public String _comment_ENABLE_TIMBER_TWEAK = "Master switch for Timber feature.";
+    public boolean ENABLE_TIMBER_TWEAK = true;
+
     public String _comment_ENABLE_AUTO_LEAVES_DECAY = "Make leaves decay instantly when a tree is cut down using Timber.";
     public boolean ENABLE_AUTO_LEAVES_DECAY = true;
 
@@ -123,28 +129,31 @@ public class SmallLogicTweaksConfig {
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
+    // Cấu hình vật lý: Chỉ dùng để lưu/đọc file trên ổ cứng cục bộ
+    public static SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
 
-    // Thực thể tĩnh duy nhất nắm giữ trạng thái cấu hình đang hoạt động của Mod toàn cục
-    public static SmallLogicTweaksConfig INSTANCE = new SmallLogicTweaksConfig();
-
-    // Định nghĩa đường dẫn tệp tin lưu trữ nằm trong thư mục config tiêu chuẩn của Fabric API
-    private static final File CONFIG_FILE = new File(FabricLoader.getInstance().getConfigDir().toFile(), "small_logic_tweaks.json");
+    // Cấu hình RAM: Thực thể trực tiếp quyết định luật chơi trong thời gian thực
+    public static SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
 
     // Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    private static File getConfigFile() {
+        return new File(FabricLoader.getInstance().getConfigDir().toFile(), "small_logic_tweaks.json");
+    }
 
     public static void load() {
         // Kiểm tra xem người chơi đã từng có tệp cấu hình trên ổ đĩa chưa
-        if (CONFIG_FILE.exists()) {
+        if (getConfigFile().exists()) {
             try {
                 // DỰ PHÒNG CHỐNG TRÀN RAM: Đo dung lượng tệp trước khi đọc.
                 // Nếu tệp lớn một cách bất thường (vượt quá 1MB), chặn đứng hành vi đọc tệp ngay lập tức.
-                if (CONFIG_FILE.length() > MAX_FILE_SIZE_BYTES) {
+                if (getConfigFile().length() > MAX_FILE_SIZE_BYTES) {
                     throw new IOException("Config file is suspiciously large (>" + MAX_FILE_SIZE_BYTES + " bytes). Refusing to load to prevent OutOfMemoryError.");
                 }
 
                 // Đọc toàn bộ nội dung tệp JSON thành một chuỗi String văn bản lớn trong bộ nhớ RAM với bảng mã UTF-8 chuẩn
-                String jsonContent = Files.readString(CONFIG_FILE.toPath(), StandardCharsets.UTF_8);
+                String jsonContent = Files.readString(getConfigFile().toPath(), StandardCharsets.UTF_8);
 
                 // DỰ PHÒNG KÝ TỰ ẨN (UTF-8 BOM): Windows Notepad cũ thường chèn ký tự ẩn \uFEFF vào đầu tệp khi lưu.
                 // Nếu không loại bỏ byte này, Gson sẽ báo lỗi cú pháp không nhận diện được dấu ngoặc nhọn '{'.
@@ -182,14 +191,17 @@ public class SmallLogicTweaksConfig {
                         // DỰ PHÒNG LỖI SAI BIÊN LOGIC: Tiến hành kiểm tra và sửa đổi các thông số số nguyên ngay trên thực thể tạm
                         loaded.validate();
 
+                        // Gán dữ liệu đọc được vào cấu hình cục bộ
+                        LOCAL_INSTANCE = loaded;
+
                         // DỰ PHÒNG XUNG ĐỘT LUỒNG (Race Condition): Sau khi dữ liệu đã sạch 100%, mới hoán đổi tham chiếu vào biến INSTANCE toàn cục.
                         // Việc này đảm bảo các luồng game khác không bao giờ đọc phải dữ liệu rác hoặc dữ liệu lỗi trong quá trình nạp file.
-                        INSTANCE = loaded;
+                        ACTIVE_INSTANCE = loaded;
 
                         // Đồng bộ ngược lại cấu trúc sạch (đã sửa lỗi biên, điền thiếu comment nếu có) đè lên đĩa cứng
                         save();
 
-                        if (INSTANCE.ENABLE_DEBUG_LOGS) {
+                        if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
                             LOGGER.info("Successfully loaded, normalized, and self-healed config file.");
                         }
                     } else {
@@ -206,14 +218,14 @@ public class SmallLogicTweaksConfig {
                 LOGGER.error("Config file is corrupted or invalid! Resetting to default configuration. Error: {}", e.getMessage());
 
                 // Khôi phục lại trạng thái mod về mặc định của nhà phát triển trực tiếp trên RAM để cứu vãn phiên chơi
-                INSTANCE = new SmallLogicTweaksConfig();
-
+                LOCAL_INSTANCE = new SmallLogicTweaksConfig();
+                ACTIVE_INSTANCE = LOCAL_INSTANCE;
                 // Ghi đè lại file mặc định sạch lên đĩa cứng để tự sửa lỗi cho các lần khởi động game sau
                 save();
             }
         } else {
             // Trường hợp file không tồn tại (Lần đầu chạy mod), in log thông báo và sinh file cấu hình mặc định
-            if (INSTANCE.ENABLE_DEBUG_LOGS) {
+            if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
                 LOGGER.info("Config file not found, initializing default...");
             }
             save();
@@ -223,27 +235,27 @@ public class SmallLogicTweaksConfig {
     public static void save() {
         // DỰ PHÒNG MẤT THƯ MỤC: Nếu thư mục chứa file cấu hình bị xóa mất (hoặc chưa sinh ra), tự động tạo lại các tầng thư mục
         try {
-            Files.createDirectories(CONFIG_FILE.getParentFile().toPath());
+            Files.createDirectories(getConfigFile().getParentFile().toPath());
         } catch (IOException e) {
             // Xử lý hoặc ghi log lỗi không thể tạo thư mục
         }
 
         // Định nghĩa đường dẫn cho tệp tin tạm thời có đuôi `.tmp`
-        File tempFile = new File(CONFIG_FILE.getParentFile(), CONFIG_FILE.getName() + ".tmp");
+        File tempFile = new File(getConfigFile().getParentFile(), getConfigFile().getName() + ".tmp");
 
         try {
             // BƯỚC 1 CỦA GHI NGUYÊN TỬ (Atomic Save): Ghi toàn bộ dữ liệu cấu hình hiện tại vào tệp tạm thời `.tmp` trước.
             // DỰ PHÒNG MẤT ĐIỆN/ĐẦY Ổ CỨNG GIỮA CHỪNG: Nếu quá trình ghi tệp bị đứt quãng tại đây, tệp gốc (.json) của người chơi vẫn an toàn tuyệt đối.
             try (FileWriter writer = new FileWriter(tempFile)) {
-                GSON.toJson(INSTANCE, writer);
+                GSON.toJson(LOCAL_INSTANCE, writer);
             }
 
             // BƯỚC 2 CỦA GHI NGUYÊN TỬ: Ra lệnh cho hệ điều hành thực hiện tráo đổi (Move) tệp `.tmp` đè lên tệp gốc `.json`.
             // Thao tác ATOMIC_MOVE diễn ra ở tầng nhân hệ điều hành trong tích tắc (vài phần triệu giây), loại bỏ hoàn toàn nguy cơ tệp tin bị cắt cụt dữ liệu (0 byte) khi mất điện đột ngột.
-            Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(tempFile.toPath(), getConfigFile().toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
 
-            if (INSTANCE.ENABLE_DEBUG_LOGS) {
-                LOGGER.info("Successfully saved config file securely to: {}", CONFIG_FILE.getAbsolutePath());
+            if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
+                LOGGER.info("Successfully saved config file securely to: {}", getConfigFile().getAbsolutePath());
             }
         } catch (IOException e) {
             // DỰ PHÒNG LỖI KHÓA FILE HỆ ĐIỀU HÀNH: Nếu ổ cứng bị đóng băng (Read-only) hoặc đầy dung lượng hoàn toàn, in log lỗi
@@ -259,12 +271,13 @@ public class SmallLogicTweaksConfig {
         }
     }
 
-    private void validate() {
+    public void validate() {
         // GHI ĐÈ VÔ ĐIỀU KIỆN: Tự động phục hồi toàn bộ nội dung hướng dẫn của nhà phát triển
         // Cho dù người dùng xóa, gán null, hay viết sai lệch nội dung, hệ thống sẽ luôn khôi phục về dạng chuẩn.
         this._comment_ENABLE_DEBUG_LOGS = "Enable or disable general debug logs for the mod.";
         this._comment_ENABLE_TIMBER_DEBUG_LOGS = "Enable or disable technical logs for the tree chopper feature.";
         this._comment_ENABLE_CHARCOAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Charcoal.";
+        this._comment_ENABLE_COAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Coal.";
         this._comment_ENABLE_JUNGLE_SUSTAINABILITY = "Increase the drop rate of Jungle Saplings from Jungle Leaves.";
         this._comment_ENABLE_BONE_MEAL_TWEAK = "Enable using Bone Meal on dirt to turn it into grass or mycelium.";
         this._comment_REQUIRE_NEIGHBOR_SOURCE = "If true, requires at least one matching grass/mycelium block in a 3x3x3 area.";
@@ -302,7 +315,7 @@ public class SmallLogicTweaksConfig {
         }
 
         // Chặn lỗi số âm đối với số lượng lá tối thiểu yêu cầu để nhận diện một cây tự nhiên
-        if (this.MIN_LEAVES_FOR_TREE < 0) {
+        if (this.MIN_LEAVES_FOR_TREE <= 0) {
             LOGGER.error("Invalid value for 'MIN_LEAVES_FOR_TREE' ({}). Cannot be negative. Resetting to default: 4", this.MIN_LEAVES_FOR_TREE);
             this.MIN_LEAVES_FOR_TREE = 4;
         }
@@ -356,9 +369,36 @@ public class SmallLogicTweaksConfig {
         }
 
         // Khống chế giới hạn quái vật cục bộ (Mob Cap).
-        if (this.PHANTOM_MOB_CAP < 0 || this.PHANTOM_MOB_CAP > 100) {
+        if (this.PHANTOM_MOB_CAP <= 0 || this.PHANTOM_MOB_CAP > 100) {
             LOGGER.error("Invalid value for 'PHANTOM_MOB_CAP' ({}). Must be between 0 and 100. Resetting to default: 8", this.PHANTOM_MOB_CAP);
             this.PHANTOM_MOB_CAP = 8;
         }
+    }
+
+    public void fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
+        // 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
+        this.validate();
+
+        // 2. Kiểm tra chéo: Tính năng TIMBER
+        if (this.MAX_LOG_HORIZONTAL_RADIUS != rawReceived.MAX_LOG_HORIZONTAL_RADIUS ||
+                this.MAX_LEAF_DISTANCE != rawReceived.MAX_LEAF_DISTANCE ||
+                this.MIN_LEAVES_FOR_TREE != rawReceived.MIN_LEAVES_FOR_TREE ||
+                this.DECAY_THRESHOLD != rawReceived.DECAY_THRESHOLD) {
+
+            // Cấu hình Timber bị hỏng/độc hại -> Tắt hoàn toàn ở Client
+            this.ENABLE_TIMBER_TWEAK = false;
+            LOGGER.warn("[Failsafe] Timber tweak configurations were tampered/out-of-bounds. Feature disabled locally to prevent OOM/Lag.");
+        }
+
+        // 3. Kiểm tra chéo: Tính năng PHANTOM
+        if (this.PHANTOM_MOB_CAP != rawReceived.PHANTOM_MOB_CAP ||
+                this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT /* ... các biến Phantom khác ... */) {
+
+            this.ENABLE_END_PHANTOM = false;
+            LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered. Feature disabled locally.");
+        }
+
+        // Lưu ý: Các tính năng Boolean thuần túy (như Bone Meal) không cần failsafe
+        // vì bản thân giá trị true/false không thể bị overflow (tràn bộ nhớ).
     }
 }

@@ -20,7 +20,7 @@ public abstract class ServerPlayerMixin {
     )
     private void onAwardStat(Stat<?> stat, int count, CallbackInfo ci) {
         // Lọc đúng chỉ số TIME_SINCE_REST (Thời gian mất ngủ)
-        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM && stat.equals(Stats.CUSTOM.get(Stats.TIME_SINCE_REST))) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM && stat.equals(Stats.CUSTOM.get(Stats.TIME_SINCE_REST))) {
             ServerPlayer player = (ServerPlayer) (Object) this;
 
             // Nếu người chơi KHÔNG ở thế giới The End, chặn hoàn toàn việc tăng bộ đếm

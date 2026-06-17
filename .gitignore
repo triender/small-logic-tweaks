@@ -31,7 +31,9 @@ bin/
 # fabric
 
 run/
-
+run_server/
+logs/
+run-gametest/
 # java
 
 hs_err_*.log

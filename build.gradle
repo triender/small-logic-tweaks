@@ -28,7 +28,16 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	
+
+	// Cung cấp API để viết test
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+	// Cung cấp Engine để chạy test
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+	// Cung cấp Launcher cho Gradle Test Executor
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// 2. Thư viện Fabric GameTest API cho Integration Test
+	implementation fabricApi.module("fabric-gametest-api-v1", project.fabric_api_version)
 }
 
 processResources {
@@ -77,5 +86,45 @@ publishing {
 		// Notice: This block does NOT have the same function as the block in the top level.
 		// The repositories here will be used for publishing your artifact, not for
 		// retrieving dependencies.
+	}
+}
+loom {
+	runs {
+		// Cấu hình cho máy khách (Giữ nguyên thư mục run)
+		client {
+			client()
+			ideConfigGenerated true
+			name = "Minecraft Client"
+			source sourceSets.main
+			runDir "run"
+		}
+		// Cấu hình cho máy chủ (Đổi sang thư mục run_server riêng biệt)
+		server {
+			server()
+			ideConfigGenerated true
+			name = "Minecraft Server"
+			source sourceSets.main
+			runDir "run_server"
+		}
+		// Định nghĩa cấu hình chạy chuyên dụng để kích hoạt hệ thống GameTest
+		gameTestServer {
+			server() // Thiết lập môi trường chạy là máy chủ (Headless Server)
+			name "Minecraft GameTest Server"
+			vmArg "-Dfabric-api.gametest" // Tham số bắt buộc để kích hoạt bộ nạp GameTest của Fabric
+			runDir "run-gametest" // Thư mục riêng biệt để chứa dữ liệu thế giới ảo khi test
+		}
+	}
+}
+
+test{
+	useJUnitPlatform()
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+
+	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
+	testLogging {
+		events "passed", "skipped", "failed"
 	}
 }

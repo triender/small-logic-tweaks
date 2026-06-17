@@ -23,7 +23,7 @@ public record TweaksConfigCondition(String key) implements ResourceCondition {
             ResourceConditionType.create(Identifier.fromNamespaceAndPath("small_logic_tweaks", "config_flag"), CODEC);
 
     public static void initialize() {
-        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
             LOGGER.info("Registering Resource Conditions for JSON files...");
         }
         ResourceConditions.register(TYPE);
@@ -38,8 +38,9 @@ public record TweaksConfigCondition(String key) implements ResourceCondition {
     @Override
     public boolean test(RegistryOps.RegistryInfoLookup registryLookup) {
         return switch (this.key) {
-            case "charcoal_dye" -> SmallLogicTweaksConfig.INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
-            case "jungle_leaves" -> SmallLogicTweaksConfig.INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
+            case "charcoal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
+            case "coal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_COAL_TO_BLACK_DYE;
+            case "jungle_leaves" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
             default -> false;
         };
     }

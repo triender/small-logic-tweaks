@@ -12,6 +12,7 @@ import net.minecraft.stats.Stats;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.monster.Phantom;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -28,6 +29,9 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.world.level.gamerules.GameRules;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,7 +72,7 @@ public class SmallLogicTweaksEvents {
 
     private static void registerBoneMealTweak() {
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_BONE_MEAL_TWEAK) return InteractionResult.PASS;
+            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_BONE_MEAL_TWEAK) return InteractionResult.PASS;
             if (player.isSpectator()) return InteractionResult.PASS;
 
             ItemStack stack = player.getItemInHand(hand);
@@ -76,7 +80,7 @@ public class SmallLogicTweaksEvents {
             BlockState state = world.getBlockState(pos);
 
             // 1. Kiểm tra loại khối đất hợp lệ
-            boolean isValidDirt = SmallLogicTweaksConfig.INSTANCE.ALLOW_ALL_DIRT_TYPES
+            boolean isValidDirt = SmallLogicTweaksConfig.ACTIVE_INSTANCE.ALLOW_ALL_DIRT_TYPES
                     ? state.is(BlockTags.DIRT)
                     : state.is(Blocks.DIRT);
 
@@ -90,7 +94,7 @@ public class SmallLogicTweaksEvents {
                 BlockState newState = null;
 
                 // 3. Xử lý logic khối nguồn lân cận
-                if (SmallLogicTweaksConfig.INSTANCE.REQUIRE_NEIGHBOR_SOURCE) {
+                if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE) {
                     boolean hasGrassNeighbor = false;
                     boolean hasMyceliumNeighbor = false;
 
@@ -151,10 +155,10 @@ public class SmallLogicTweaksEvents {
 
     public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
-    // Lưu trữ kết quả phân tích của khối đang đào hiện tại
-    private static final ThreadLocal<BlockPos> LAST_CHECKED_POS = new ThreadLocal<>();
-    private static final ThreadLocal<Float> CACHED_FACTOR = ThreadLocal.withInitial(() -> 1.0f);
-
+    private static final Cache<BlockPos, Float> TIMBER_SPEED_CACHE = CacheBuilder.newBuilder()
+            .maximumSize(10) // Nhớ 10 khối gần nhất (Chống lag khi lắc chuột qua lại)
+            .expireAfterWrite(2, TimeUnit.SECONDS) // Tự động xóa khỏi RAM sau 2 giây (Chống Leak RAM)
+            .build();
 
     // Hàm tiện ích để in Log
     private static void debugLog(String message, Object... args) {
@@ -177,7 +181,7 @@ public class SmallLogicTweaksEvents {
 
             if (result.shouldChop()) {
                 debugLog("[Timber] Validation successful! Found {} logs to break.", result.logs().size());
-                performTimberChop(serverLevel, (ServerPlayer) player, axe, result);
+                performTimberChop(serverLevel, player, axe, result);
                 return false;
             }
 
@@ -188,13 +192,17 @@ public class SmallLogicTweaksEvents {
     public static float getTimberSpeedFactor(Player player, BlockPos pos) {
         Level level = player.level();
 
-        if (pos.equals(LAST_CHECKED_POS.get())) {
-            return CACHED_FACTOR.get();
+        // Kiểm tra xem RAM đã tính toán khối này trong vòng 2 giây qua chưa
+        Float cachedFactor = TIMBER_SPEED_CACHE.getIfPresent(pos);
+        if (cachedFactor != null) {
+            return cachedFactor; // Trả về ngay lập tức, FPS không bị tụt
         }
 
+        // Nếu chưa có, tiến hành thuật toán quét BFS
         ItemStack axe = player.getMainHandItem();
         var result = analyzeTimber(level, player, pos, axe);
 
+        float newFactor = 1.0f;
         if (result.shouldChop() && !result.logs().isEmpty()) {
             float multiplier = switch (result.level()) {
                 case 1 -> 1.0f;
@@ -202,16 +210,18 @@ public class SmallLogicTweaksEvents {
                 case 3 -> 0.8f;
                 default -> 1.0f;
             };
-            CACHED_FACTOR.set(result.logs().size() * multiplier);
-        } else {
-            CACHED_FACTOR.set(1.0f);
+            newFactor = result.logs().size() * multiplier;
         }
 
-        LAST_CHECKED_POS.set(pos.immutable());
-        return CACHED_FACTOR.get();
-    }
+        // Lưu kết quả vào Cache để dùng cho các tick tiếp theo
+        TIMBER_SPEED_CACHE.put(pos, newFactor);
 
+        return newFactor;
+    }
     private static TimberResult analyzeTimber(Level level, Player player, BlockPos startPos, ItemStack axe) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_TIMBER_TWEAK)
+            return new TimberResult(false, List.of(), List.of(), 0);
+
         if (player.isShiftKeyDown() || !level.getBlockState(startPos).is(BlockTags.LOGS))
             return new TimberResult(false, List.of(), List.of(), 0);
 
@@ -249,8 +259,8 @@ public class SmallLogicTweaksEvents {
                         BlockPos neighbor = current.offset(x, y, z);
 
                         // Sử dụng biến cấu hình thay vì Magic Number
-                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
-                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
+                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
+                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
 
                         if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
                             visitedLogs.add(neighbor);
@@ -277,7 +287,7 @@ public class SmallLogicTweaksEvents {
             int currentDist = leafDistance.get(current);
 
             // Sử dụng biến cấu hình khoảng cách lá
-            if (!(currentDist < SmallLogicTweaksConfig.INSTANCE.MAX_LEAF_DISTANCE)) continue;
+            if (!(currentDist < SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LEAF_DISTANCE)) continue;
 
             for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
                 BlockPos neighbor = current.relative(dir);
@@ -296,12 +306,12 @@ public class SmallLogicTweaksEvents {
         }
 
         // Sử dụng biến cấu hình điều kiện lá tối thiểu
-        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.INSTANCE.MIN_LEAVES_FOR_TREE;
+        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.MIN_LEAVES_FOR_TREE;
 
         return new TimberResult(isTree, logs, leaves, levelEnchant);
     }
 
-    private static void performTimberChop(ServerLevel level, ServerPlayer player, ItemStack axe, TimberResult result) {
+    private static void performTimberChop(ServerLevel level, Player player, ItemStack axe, TimberResult result) {
         debugLog("[Timber] Execution: Breaking {} logs and checking {} leaves...", result.logs().size(), result.leaves().size());
         int brokenLogsCount = 0;
 
@@ -312,13 +322,17 @@ public class SmallLogicTweaksEvents {
             }
             if (level.destroyBlock(logPos, true, player)) {
                 brokenLogsCount++;
-                axe.hurtAndBreak(1, level, player, (item) ->
+
+                // Nếu người chơi thật -> Ép kiểu ServerPlayer để cập nhật thống kê mạng.
+                // Nếu là MockPlayer của GameTest -> Gán null, vũ khí vẫn sẽ bị trừ độ bền cục bộ.
+                ServerPlayer sp = player instanceof ServerPlayer ? (ServerPlayer) player : null;
+                axe.hurtAndBreak(1, level, sp, (item) ->
                         player.onEquippedItemBroken(item, EquipmentSlot.MAINHAND));
             }
         }
 
         // 2. ÉP GAME LOGIC XỬ LÝ LÁ (Tối ưu hóa In-Memory)
-        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
 
             // Khởi tạo không gian RAM để lưu trữ khoảng cách tính toán
             Map<BlockPos, Integer> virtualDistances = new HashMap<>();
@@ -376,7 +390,7 @@ public class SmallLogicTweaksEvents {
                 if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
                     int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
 
-                    if (finalDistance >= SmallLogicTweaksConfig.INSTANCE.DECAY_THRESHOLD) {
+                    if (finalDistance >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.DECAY_THRESHOLD) {
                         // Lá đạt ngưỡng: Thực hiện phá khối
                         level.destroyBlock(leafPos, true);
                     } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
@@ -392,13 +406,13 @@ public class SmallLogicTweaksEvents {
 
     private static void registerPotatoTweaks() {
         // Tweak 1: Sử dụng với Thùng ủ phân (Composter)
-        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
             net.minecraft.world.level.block.ComposterBlock.COMPOSTABLES.put(Items.POISONOUS_POTATO, 0.65F);
             debugLog("[Potato Tweak] Registered Poisonous Potato to Composter.");
         }
 
         // Tweak 2: Bột chế thuốc độc (Potion of Poison)
-        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
             FabricPotionBrewingBuilder.BUILD.register(builder -> {
                 // Dùng phương thức addMix thông qua biến builder
                 builder.addMix(Potions.AWKWARD, Items.POISONOUS_POTATO, Potions.POISON);
@@ -429,7 +443,7 @@ public class SmallLogicTweaksEvents {
     private static void registerHydroHardeningTweak() {
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             // Chỉ bỏ qua chế độ Khán giả và kiểm tra cấu hình ngay từ đầu
-            if (player.isSpectator() || !SmallLogicTweaksConfig.INSTANCE.ENABLE_HYDRO_HARDENING) {
+            if (player.isSpectator() || !SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_HYDRO_HARDENING) {
                 return InteractionResult.PASS;
             }
 
@@ -487,18 +501,18 @@ public class SmallLogicTweaksEvents {
 
     private static void registerEndPhantomTweak() {
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> {
-            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
 
             if (origin.dimension() == Level.END) {
                 player.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
-                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
+                if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
                     LOGGER.info("[End-Phantom Debug] Reset Player stats: {} ", player.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)));
                 }
             }
         });
 
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
 
             if (oldPlayer.level().dimension() == Level.END) {
                 newPlayer.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
@@ -506,113 +520,85 @@ public class SmallLogicTweaksEvents {
         });
 
         ServerTickEvents.END_LEVEL_TICK.register(level -> {
-            if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_END_PHANTOM) return;
+            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
             if (level.dimension() != Level.END) return;
-
-            if (!level.getGameRules().get(GameRules.SPAWN_PHANTOMS))
-                return;
-
-            var random = level.getRandom();
+            if (!level.getGameRules().get(GameRules.SPAWN_PHANTOMS)) return;
 
             for (net.minecraft.server.level.ServerPlayer player : level.players()) {
                 if (player.isSpectator() || player.isCreative()) continue;
+                if ((level.getGameTime() + player.getId()) % SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_CHECK_COOLDOWN != 0) continue;
 
-                if ((level.getGameTime() + player.getId()) % SmallLogicTweaksConfig.INSTANCE.PHANTOM_CHECK_COOLDOWN != 0) continue;
+                executePhantomSpawnLogic(level, player);
+            }
+        });
+    }
 
-                int timeSinceRest = player.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+    public static void executePhantomSpawnLogic(ServerLevel level, ServerPlayer player) {
+        // 1. Kiểm tra Stat
+        int timeSinceRest = player.getStats().getValue(net.minecraft.stats.Stats.CUSTOM.get(net.minecraft.stats.Stats.TIME_SINCE_REST));
 
-                boolean hasElytra = player.getInventory().hasAnyMatching(stack -> stack.is(net.minecraft.world.item.Items.ELYTRA))
-                        || player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
+        // 2. Kiểm tra Elytra (Sử dụng Player thay vì ServerPlayer vì Inventory nằm ở lớp Player)
+        boolean hasElytra = player.getInventory().hasAnyMatching(stack -> stack.is(net.minecraft.world.item.Items.ELYTRA))
+                || player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
 
-                int currentInsomniaThreshold = hasElytra
-                        ? SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
-                        : SmallLogicTweaksConfig.INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
+        int currentInsomniaThreshold = hasElytra
+                ? SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
+                : SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
 
-                // Game tự dọn dẹp các Phantom ở khoảng cách > 128 khối.
-                // Mod chỉ đếm số lượng Phantom hiện đang áp sát người chơi trong vùng 128 khối.
+        // 3. Logic Roll RNG và Spawn
+        if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
+            var random = level.getRandom();
+
+            int rollValue = random.nextInt(timeSinceRest);
+
+            if (rollValue >= currentInsomniaThreshold) {
                 var nearbyPhantoms = level.getEntitiesOfClass(
                         net.minecraft.world.entity.monster.Phantom.class,
                         player.getBoundingBox().inflate(128.0, 128.0, 128.0)
                 );
 
-                // Giới hạn cục bộ (Local Cap) để không sinh quá tải
-                int localCap = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MOB_CAP;
-                if (nearbyPhantoms.size() >= localCap) {
-                    if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
-                        LOGGER.info("[End-Phantom Debug] Hit local mob cap ({}/{}). Skipping spawn for {}.",
-                                nearbyPhantoms.size(), localCap, player.getName().getString());
-                    }
-                    continue;
-                }
+                int localCap = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MOB_CAP;
+                if (nearbyPhantoms.size() >= localCap) return;
 
-                if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
-                    int rollValue = random.nextInt(timeSinceRest);
+                int minCount = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_COUNT;
+                int maxCount = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_COUNT;
 
-                    if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
-                        LOGGER.info("[End-Phantom Debug] Player {}. Roll value {}",
-                                player.getName().getString(), rollValue);
-                    }
+                // Tính số lượng cần spawn
+                int desiredSpawnCount = minCount + random.nextInt((maxCount - minCount) + 1);
+                int phantomCount = Math.min(desiredSpawnCount, localCap - nearbyPhantoms.size());
 
-                    if (rollValue >= currentInsomniaThreshold) {
-                        int minCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_COUNT;
-                        int maxCount = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_COUNT;
+                net.minecraft.core.BlockPos playerPos = player.blockPosition();
+                int minHeight = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT;
+                int maxHeight = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT;
 
-                        int desiredSpawnCount = minCount + random.nextInt((maxCount - minCount) + 1);
-                        int availableSlots = localCap - nearbyPhantoms.size();
-                        int phantomCount = Math.min(desiredSpawnCount, availableSlots);
+                for (int i = 0; i < phantomCount; i++) {
+                    int randomHeight = minHeight + random.nextInt((maxHeight - minHeight) + 1);
+                    net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
 
-                        net.minecraft.core.BlockPos playerPos = player.blockPosition();
+                    // Kiểm tra va chạm để spawn an toàn
+                    boolean isValidSpawn = false;
+                    for (int attempt = 0; attempt < 10; attempt++) {
+                        net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityType.PHANTOM
+                                .getDimensions()
+                                .makeBoundingBox(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
 
-                        if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
-                            LOGGER.info("[End-Phantom] Player {} luckily have starting spawn {} Phantom.",
-                                    player.getName().getString(), phantomCount);
+                        if (level.noCollision(spawnBox)) {
+                            isValidSpawn = true;
+                            break;
                         }
+                        spawnPos = spawnPos.above();
+                    }
 
-                        int minHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT;
-                        int maxHeight = SmallLogicTweaksConfig.INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT;
-                        int heightRange = (maxHeight - minHeight) + 1;
+                    if (!isValidSpawn) continue;
 
-                        for (int i = 0; i < phantomCount; i++) {
-                            int randomHeight = minHeight + random.nextInt(heightRange);
-                            net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
-
-                            boolean isValidSpawn = false;
-                            for (int attempt = 0; attempt < 10; attempt++) {
-                                // Tạo hộp va chạm ảo tại vị trí dự kiến sinh ra
-                                net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityType.PHANTOM
-                                        .getDimensions()
-                                        .makeBoundingBox(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
-
-                                // Kiểm tra xem hộp va chạm này có đè lên bất kỳ khối rắn nào trong thế giới không
-                                if (level.noCollision(spawnBox)) {
-                                    isValidSpawn = true;
-                                    break;
-                                }
-                                spawnPos = spawnPos.above();
-                            }
-
-                            if (!isValidSpawn) {
-                                continue;
-                            }
-
-                            // Khởi tạo thực thể với cờ NATURAL đảm bảo chúng tuân thủ 100% luật Despawn tự nhiên
-                            net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityType.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
-
-                            if (phantom != null) {
-                                phantom.setPos(spawnPos.getX() + 0.5D, (double) spawnPos.getY(), spawnPos.getZ() + 0.5D);
-
-                                phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
-                                level.addFreshEntityWithPassengers(phantom);
-
-                                if (SmallLogicTweaksConfig.INSTANCE.ENABLE_DEBUG_LOGS) {
-                                    LOGGER.info("[End-Phantom] spawn Phantom num {} at: {}",
-                                            i + 1, spawnPos.toShortString());
-                                }
-                            }
-                        }
+                    net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityType.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
+                    if (phantom != null) {
+                        phantom.setPos(spawnPos.getX() + 0.5D, (double) spawnPos.getY(), spawnPos.getZ() + 0.5D);
+                        phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
+                        level.addFreshEntityWithPassengers(phantom);
                     }
                 }
             }
-        });
+        }
     }
 }

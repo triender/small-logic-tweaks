@@ -18,7 +18,7 @@ public abstract class ThrownPotionMixin {
 
     @Inject(method = "onHit", at = @At("RETURN"))
     private void applySplashHardeningLogic(HitResult result, CallbackInfo ci) {
-        if (!SmallLogicTweaksConfig.INSTANCE.ENABLE_SPLASH_HARDENING) return;
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_SPLASH_HARDENING) return;
 
         AbstractThrownPotion potion = (AbstractThrownPotion) (Object) this;
         Level world = potion.level();
