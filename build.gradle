@@ -1,6 +1,7 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
+	id 'jacoco'
 }
 
 version = project.mod_version
@@ -126,5 +127,18 @@ tasks.named('test') {
 	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
 	testLogging {
 		events "passed", "skipped", "failed"
+	}
+}
+
+jacoco {
+	toolVersion = "0.8.12"
+}
+
+jacocoTestReport {
+	dependsOn test
+	executionData fileTree(layout.buildDirectory).include("jacoco/*.exec")
+	reports {
+		xml.required = true
+		html.required = true
 	}
 }

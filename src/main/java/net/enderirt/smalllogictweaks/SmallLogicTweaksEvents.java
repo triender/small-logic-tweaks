@@ -535,8 +535,9 @@ public class SmallLogicTweaksEvents {
 
     public static void executePhantomSpawnLogic(ServerLevel level, Player player) {
         // Nhận diện xem người chơi có phải là Mock/Fake Player trong GameTest hay không
-        boolean isMockPlayer = player.getClass().getSimpleName().contains("Mock")
-                || player.getClass().getSimpleName().contains("GameTest")
+        boolean isMockPlayer = player.getClass().getName().contains("Mock")
+                || player.getClass().getName().contains("GameTest")
+                || player.getClass().getName().contains("Fake")
                 || !(player instanceof ServerPlayer);
 
         // 1. Kiểm tra Stat an toàn (Vì MockPlayer không có StatManager thực tế)

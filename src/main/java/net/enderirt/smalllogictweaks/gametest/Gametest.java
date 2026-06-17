@@ -34,6 +34,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Optional;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
+import net.minecraft.world.level.Level;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 
 public class Gametest {
 
@@ -409,6 +414,8 @@ public class Gametest {
 
         // Tạo MockPlayer (Trả về Player)
         Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        BlockPos playerSpawnPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        mockPlayer.setPos(playerSpawnPos.getX() + 0.5D, playerSpawnPos.getY(), playerSpawnPos.getZ() + 0.5D);
 
         // Gọi hàm logic (Bây giờ đã chấp nhận tham số Player)
         SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
@@ -417,11 +424,235 @@ public class Gametest {
         helper.succeedWhen(() -> {
             var spawnedPhantoms = helper.getLevel().getEntitiesOfClass(
                     net.minecraft.world.entity.monster.Phantom.class,
-                    mockPlayer.getBoundingBox().inflate(50.0, 50.0, 50.0)
+                    helper.getBounds().inflate(12.0, 45.0, 12.0)
             );
 
             helper.assertTrue(!spawnedPhantoms.isEmpty(), "Không có Phantom nào được sinh ra.");
             helper.assertTrue(spawnedPhantoms.size() >= 2, "Số lượng Phantom sinh ra ít hơn mức MIN_COUNT.");
         });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void testHydroHardeningDirectClick(GameTestHelper helper) {
+        BlockPos targetPos = new BlockPos(1, 2, 1);
+        helper.setBlock(targetPos, Blocks.RED_CONCRETE_POWDER);
+
+        Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        ItemStack waterPotion = new ItemStack(Items.POTION);
+        waterPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new net.minecraft.world.item.alchemy.PotionContents(Potions.WATER));
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, waterPotion);
+
+        BlockPos absolutePos = helper.absolutePos(targetPos);
+        BlockHitResult hitResult = new BlockHitResult(
+                Vec3.atCenterOf(absolutePos), Direction.UP, absolutePos, false
+        );
+
+        // Kích hoạt sự kiện tương tác chuột phải
+        InteractionResult result = UseBlockCallback.EVENT.invoker().interact(
+                mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hitResult
+        );
+
+        helper.assertTrue(result == InteractionResult.SUCCESS, "Lỗi tương tác: Click chai nước không trả về SUCCESS.");
+        helper.assertBlockPresent(Blocks.RED_CONCRETE, targetPos);
+        helper.assertTrue(mockPlayer.getItemInHand(InteractionHand.MAIN_HAND).is(Items.GLASS_BOTTLE), "Lỗi: Không trả lại chai thủy tinh rỗng.");
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testTimberSneakBehavior(GameTestHelper helper) {
+        BlockPos basePos = new BlockPos(1, 2, 1);
+        buildValidTree(helper, basePos);
+
+        Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        equipTimberAxe(helper, mockPlayer, 1);
+        mockPlayer.setShiftKeyDown(true); // Đè Shift
+
+        BlockPos absolutePos = helper.absolutePos(basePos);
+        var state = helper.getBlockState(basePos);
+
+        boolean isVanillaBreakAllowed = PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(
+                helper.getLevel(), mockPlayer, absolutePos, state, null
+        );
+
+        helper.assertTrue(isVanillaBreakAllowed, "Lỗi Shift-Sneak: Timber vẫn chặn đập khối khi đè Shift.");
+        helper.assertTrue(helper.getBlockState(basePos.above(1)).is(Blocks.OAK_LOG), "Lỗi: Khối gỗ phía trên bị phá hủy trái phép.");
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 20)
+    public void testTimberDurabilityLoss(GameTestHelper helper) {
+        BlockPos basePos = new BlockPos(1, 2, 1);
+        buildValidTree(helper, basePos); // Tạo cây có 3 khối gỗ
+
+        Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        equipTimberAxe(helper, mockPlayer, 1);
+        
+        ItemStack axe = mockPlayer.getMainHandItem();
+        int initialDamage = axe.getDamageValue();
+
+        BlockPos absolutePos = helper.absolutePos(basePos);
+        var state = helper.getBlockState(basePos);
+
+        // Chặt cây
+        PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(
+                helper.getLevel(), mockPlayer, absolutePos, state, null
+        );
+
+        int finalDamage = axe.getDamageValue();
+        helper.assertTrue(finalDamage - initialDamage == 3, 
+                "Lỗi độ bền: Rìu phải mất 3 độ bền khi chặt 3 khối gỗ, thực tế mất: " + (finalDamage - initialDamage));
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 20)
+    public void testTimberLevelsLimits(GameTestHelper helper) {
+        BlockPos basePos = new BlockPos(1, 2, 1);
+        
+        // Xây cột gỗ cao 20 khối liên tục
+        for (int i = 0; i < 20; i++) {
+            helper.setBlock(basePos.above(i), Blocks.OAK_LOG);
+        }
+        // Thêm lá xung quanh khối gỗ ở giữa (above(10)) để rìu cấp 1 quét trúng lá mà không làm đứt cột gỗ
+        BlockPos middleLog = basePos.above(10);
+        helper.setBlock(middleLog.north(), Blocks.OAK_LEAVES);
+        helper.setBlock(middleLog.south(), Blocks.OAK_LEAVES);
+        helper.setBlock(middleLog.east(), Blocks.OAK_LEAVES);
+        helper.setBlock(middleLog.west(), Blocks.OAK_LEAVES);
+        helper.setBlock(middleLog.north().east(), Blocks.OAK_LEAVES);
+
+        Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        equipTimberAxe(helper, mockPlayer, 1); // Rìu Timber cấp 1 (Giới hạn tối đa 16 block gỗ)
+
+        BlockPos absolutePos = helper.absolutePos(basePos);
+        var state = helper.getBlockState(basePos);
+
+        // Tiến hành chặt
+        PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(
+                helper.getLevel(), mockPlayer, absolutePos, state, null
+        );
+
+        // Khối gỗ thứ 15 (index 15, tức above(15)) phải bị biến mất (thuộc 16 khối đầu tiên tính cả gốc)
+        helper.assertTrue(helper.getBlockState(basePos.above(15)).is(Blocks.AIR), "Khối thứ 16 phải bị phá hủy.");
+        // Khối gỗ thứ 16 (index 16, tức above(16)) phải vẫn còn nguyên (do vượt quá giới hạn 16 block gỗ của cấp 1)
+        helper.assertTrue(helper.getBlockState(basePos.above(16)).is(Blocks.OAK_LOG), "Khối thứ 17 đáng lẽ không được phép phá hủy.");
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testPoisonousPotatoBrewingRecipe(GameTestHelper helper) {
+        var potionBrewing = helper.getLevel().potionBrewing();
+        ItemStack inputStack = new ItemStack(Items.POTION);
+        inputStack.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new net.minecraft.world.item.alchemy.PotionContents(Potions.AWKWARD));
+        
+        // Mix thử nguyên liệu Khoai tây độc với thuốc Awkward
+        ItemStack resultStack = potionBrewing.mix(new ItemStack(Items.POISONOUS_POTATO), inputStack);
+        var resultContents = resultStack.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+        
+        helper.assertTrue(resultContents != null && resultContents.is(Potions.POISON),
+                "Lỗi công thức nấu: Khoai tây độc nấu với Awkward Potion không sinh ra Poison Potion.");
+        
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 100)
+    public void testEndPhantomElytraThreshold(GameTestHelper helper) {
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM = true;
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_COUNT = 1;
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MOB_CAP = 5;
+        
+        int originalPre = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
+        int originalPost = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA;
+        
+        try {
+            // Cấu hình ngưỡng cao hơn 240k (mức giả lập của mock player) để không spawn khi không có Elytra
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA = 300000;
+            // Cấu hình ngưỡng thấp hơn 240k để kích hoạt spawn khi có Elytra
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
+            
+            // Tạo MockPlayer nằm trong phòng test hiện tại
+            Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+            BlockPos playerSpawnPos = helper.absolutePos(new BlockPos(1, 2, 1));
+            mockPlayer.setPos(playerSpawnPos.getX() + 0.5D, playerSpawnPos.getY(), playerSpawnPos.getZ() + 0.5D);
+            
+            // Dọn dẹp các Phantom cũ xung quanh để tránh làm tràn giới hạn (Mob Cap)
+            for (var phantom : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.monster.Phantom.class, helper.getBounds().inflate(12.0, 45.0, 12.0))) {
+                phantom.discard();
+            }
+            
+            // 1. Không mang Elytra -> Không spawn (240k < 300k)
+            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
+            var phantomsBefore = helper.getLevel().getEntitiesOfClass(
+                    net.minecraft.world.entity.monster.Phantom.class,
+                    helper.getBounds().inflate(12.0, 45.0, 12.0)
+            );
+            helper.assertTrue(phantomsBefore.isEmpty(), "Lỗi: Không được sinh Phantom khi chưa mang Elytra (240k < 300k).");
+            
+            // 2. Mang Elytra ở slot Chest -> Có spawn (240k >= 72k)
+            mockPlayer.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
+            mockPlayer.getInventory().add(new ItemStack(Items.ELYTRA));
+            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
+            
+            helper.succeedWhen(() -> {
+                var phantomsAfter = helper.getLevel().getEntitiesOfClass(
+                        net.minecraft.world.entity.monster.Phantom.class,
+                        helper.getBounds().inflate(12.0, 45.0, 12.0)
+                );
+                helper.assertTrue(!phantomsAfter.isEmpty(), "Lỗi: Phải sinh Phantom khi mang Elytra (240k >= 72k).");
+            });
+        } finally {
+            // Khôi phục cấu hình mặc định
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA = originalPre;
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA = originalPost;
+        }
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testEndPhantomStatReset(GameTestHelper helper) {
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM = true;
+        
+        // Khởi tạo ServerPlayer thật sự bằng constructor để tránh lỗi ép kiểu từ MockPlayer
+        com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "FakePlayer");
+        ServerPlayer serverPlayer = new ServerPlayer(
+            helper.getLevel().getServer(), 
+            helper.getLevel(), 
+            profile, 
+            net.minecraft.server.level.ClientInformation.createDefault()
+        );
+        
+        // 1. Giả lập tích lũy thời gian mất ngủ trực tiếp vào Stats Tracker bộ nhớ
+        serverPlayer.getStats().setValue(serverPlayer, Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 10000);
+        int statVal = serverPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+        helper.assertTrue(statVal == 10000, "Lỗi gán stat TIME_SINCE_REST.");
+        
+        // 2. Đổi chiều không gian (từ End sang Overworld)
+        ServerLevel endLevel = helper.getLevel().getServer().getLevel(Level.END);
+        ServerLevel overworldLevel = helper.getLevel().getServer().getLevel(Level.OVERWORLD);
+        
+        if (endLevel != null && overworldLevel != null) {
+            ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.invoker().afterChangeLevel(serverPlayer, endLevel, overworldLevel);
+            int finalStatVal = serverPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+            helper.assertTrue(finalStatVal == 0, "Lỗi: Stat TIME_SINCE_REST không bị reset sau khi rời The End.");
+        }
+        
+        // 3. Giả lập hồi sinh (AFTER_RESPAWN)
+        serverPlayer.getStats().setValue(serverPlayer, Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 5000);
+        
+        com.mojang.authlib.GameProfile newProfile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "FakePlayer2");
+        ServerPlayer newServerPlayer = new ServerPlayer(
+            helper.getLevel().getServer(), 
+            helper.getLevel(), 
+            newProfile, 
+            net.minecraft.server.level.ClientInformation.createDefault()
+        );
+        
+        ServerPlayerEvents.AFTER_RESPAWN.invoker().afterRespawn(serverPlayer, newServerPlayer, false);
+        int respawnStatVal = newServerPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+        helper.assertTrue(respawnStatVal == 0, "Lỗi: Stat TIME_SINCE_REST không bị reset sau khi hồi sinh.");
+        
+        helper.succeed();
     }
 }
