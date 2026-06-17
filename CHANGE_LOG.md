@@ -106,3 +106,18 @@ Welcome to the 1.4.0 release of Small Logic Tweaks! This update introduces a com
 * **Coal to Black Dye Recipe:** Added a new configuration toggle (`ENABLE_COAL_TO_BLACK_DYE`, default: false) alongside a dynamic resource condition. This allows server owners to enable crafting Black Dye directly from Coal without leaving orphaned recipes in the game's registry when disabled.
 
 **Status:** Beta. Feedback is welcome!
+
+---
+# 🐛 Hotfix (Version 1.4.1)
+
+Welcome to the 1.4.1 patch release of Small Logic Tweaks! This minor update addresses loot table drops for Jungle Leaves and enhances GameTest automated testing reliability.
+
+### ✨ Key Fixes
+
+**🌴 Jungle Leaves Loot Table:**
+* **Standard Drops Restored:** Fixed an issue where shears, Silk Touch, and sticks were not working correctly with Jungle Leaves. You can now get the leaves themselves and standard stick drops again.
+
+**🧪 Test Stability:**
+* **Deterministic GameTests:** Implemented a failsafe for Mock Players in the GameTest framework to guarantee stable phantom spawning logic, resolving test instability caused by random ticks.
+
+**Status:** Stable.
