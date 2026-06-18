@@ -3,6 +3,9 @@
 # Running this script compiles the code, executes tests, and only deploys + pushes to GitHub if all tests pass.
 # Includes fool-proof safety checks for: dirty git tree, version mismatches, and duplicate uploads.
 
+# Set TLS 1.2 to prevent connection hanging on Cloudflare-protected APIs in older PowerShell environments
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # 1. Verify Modrinth Token exists
 if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
     # Fallback to reading from User or Machine environment registry if not inherited in current process
@@ -18,7 +21,7 @@ if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
 }
 
 # 2. Verify working tree is clean (Lớp 1: Chống dirty working tree)
-$gitStatus = (git status --porcelain).Trim()
+$gitStatus = ([string](git status --porcelain)).Trim()
 if ($gitStatus) {
     Write-Error "ERROR: Working tree is dirty. Please commit or stash your changes before running deploy."
     exit 1
@@ -102,7 +105,7 @@ try {
         $alreadyExists = $false
         try {
             $headers = @{ "User-Agent" = "triender/small-logic-tweaks-deploy/1.0" }
-            $versions = Invoke-RestMethod -Uri "https://api.modrinth.com/v2/project/$projId/version" -Headers $headers -Method Get
+            $versions = Invoke-RestMethod -Uri "https://api.modrinth.com/v2/project/$projId/version" -Headers $headers -Method Get -TimeoutSec 5
             foreach ($v in $versions) {
                 if ($v.version_number -eq $modVer) {
                     $alreadyExists = $true
