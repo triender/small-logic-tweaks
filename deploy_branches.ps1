@@ -55,6 +55,11 @@ try {
             $pushStatus[$branch] = "Skipped"
             continue
         }
+
+        # Stop Gradle daemons and kill any stray Java processes to avoid file locks from previous builds
+        Write-Host "Stopping Gradle Daemons and terminating Java processes to prevent file locks..." -ForegroundColor Cyan
+        .\gradlew --stop
+        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
         
         # Đọc file gradle.properties của nhánh hiện tại (Lớp 2: Chống lệch cấu hình / râu ông nọ cắm cằm bà kia)
         Write-Host "Checking version alignment in gradle.properties..." -ForegroundColor Cyan
