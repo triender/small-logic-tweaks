@@ -183,11 +183,25 @@ finally {
     Write-Host "  Branch    | Compile  | JUnit    | GameTest | Modrinth Deploy | GitHub Push" -ForegroundColor Green
     Write-Host "  ----------|----------|----------|----------|-----------------|------------" -ForegroundColor Green
     foreach ($branch in $branches) {
-        $comp = ($compileStatus[$branch] ?: "N/A").PadRight(8)
-        $junit = ($junitStatus[$branch] ?: "N/A").PadRight(8)
-        $gt = ($gametestStatus[$branch] ?: "N/A").PadRight(8)
-        $dep = ($deployStatus[$branch] ?: "N/A").PadRight(15)
-        $push = ($pushStatus[$branch] ?: "N/A").PadRight(10)
+        $comp = $compileStatus[$branch]
+        if ($null -eq $comp) { $comp = "N/A" }
+        $comp = $comp.PadRight(8)
+        
+        $junit = $junitStatus[$branch]
+        if ($null -eq $junit) { $junit = "N/A" }
+        $junit = $junit.PadRight(8)
+        
+        $gt = $gametestStatus[$branch]
+        if ($null -eq $gt) { $gt = "N/A" }
+        $gt = $gt.PadRight(8)
+        
+        $dep = $deployStatus[$branch]
+        if ($null -eq $dep) { $dep = "N/A" }
+        $dep = $dep.PadRight(15)
+        
+        $push = $pushStatus[$branch]
+        if ($null -eq $push) { $push = "N/A" }
+        $push = $push.PadRight(10)
         
         Write-Host "  $($branch.PadRight(9)) | " -NoNewline
         
