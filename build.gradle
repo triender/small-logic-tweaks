@@ -203,7 +203,7 @@ modrinth {
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
 	changelog = getChangelogText()
-	uploadFile = project.provider { project.tasks.findByName("remapJar") }
+	uploadFile = tasks.jar
 	
 	dependencies {
 		required.project "fabric-api"
