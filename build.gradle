@@ -118,7 +118,7 @@ loom {
 	}
 }
 
-test{
+test {
 	useJUnitPlatform()
 }
 
@@ -134,6 +134,9 @@ tasks.named('test') {
 jacoco {
 	toolVersion = "0.8.12"
 }
+
+// Áp dụng Jacoco cho task chạy GameTest Server để đo độ phủ thực tế trong game
+// jacoco.applyTo(tasks.named('runGameTestServer').get())
 
 jacocoTestReport {
 	dependsOn test
@@ -200,6 +203,7 @@ modrinth {
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
 	changelog = getChangelogText()
+	uploadFile = project.provider { project.tasks.findByName("remapJar") }
 	
 	dependencies {
 		required.project "fabric-api"
@@ -207,11 +211,8 @@ modrinth {
 }
 
 afterEvaluate {
-	modrinth {
-		uploadFile = project.tasks.findByName("remapJar")
-	}
 	def modrinthTask = project.tasks.findByName("modrinth")
 	if (modrinthTask != null) {
 		modrinthTask.dependsOn("verifyChangelog")
 	}
-}
+}
