@@ -92,7 +92,7 @@ try {
         Write-Host "Versions match: minecraft_version=$mcVer, mod_version=$modVer" -ForegroundColor Green
         
         # Đọc projectId từ build.gradle để kiểm tra trùng lặp
-        $projId = "small-logic-tweaks"
+        $projId = "small-logic-tweak"
         if (Test-Path "build.gradle") {
             $buildGradle = Get-Content "build.gradle" -Raw
             if ($buildGradle -match 'projectId\s*=\s*"([^"]+)"') {
