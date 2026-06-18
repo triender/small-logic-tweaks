@@ -196,7 +196,7 @@ tasks.register("verifyChangelog") {
 
 modrinth {
 	token = System.getenv("MODRINTH_TOKEN") ?: ""
-	projectId = "small-logic-tweaks"
+	projectId = "small-logic-tweak"
 	versionNumber = project.version
 	versionName = "Small Logic Tweaks ${project.version}"
 	versionType = "release"
