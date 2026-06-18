@@ -9,7 +9,7 @@ Welcome to the 1.4.1 patch release of Small Logic Tweaks! This minor update addr
 * **Jungle Leaves Loot Table:** Fixed an issue where shears, Silk Touch, and sticks were not working correctly with Jungle Leaves. You can now get the leaves themselves and standard stick drops again.
 * **Test Stability:** Implemented a failsafe for Mock Players in the GameTest framework to guarantee stable phantom spawning logic, resolving test instability caused by random ticks.
 
-**Status:** Stable.
+**Status:** Beta. Feedback is welcome!
 
 ---
 # 🌌 Void Insomnia & 🛡️ Network Security Update (Version 1.4.0)

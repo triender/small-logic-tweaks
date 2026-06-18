@@ -199,7 +199,7 @@ modrinth {
 	projectId = "small-logic-tweak"
 	versionNumber = project.version
 	versionName = "Small Logic Tweaks ${project.version}"
-	versionType = "release"
+	versionType = "beta"
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
 	changelog = getChangelogText()
