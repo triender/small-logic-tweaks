@@ -203,6 +203,7 @@ modrinth {
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
 	changelog = getChangelogText()
+	uploadFile = project.provider { project.tasks.findByName("remapJar") }
 	
 	dependencies {
 		required.project "fabric-api"
@@ -210,9 +211,6 @@ modrinth {
 }
 
 afterEvaluate {
-	modrinth {
-		uploadFile = project.tasks.findByName("remapJar")
-	}
 	def modrinthTask = project.tasks.findByName("modrinth")
 	if (modrinthTask != null) {
 		modrinthTask.dependsOn("verifyChangelog")
