@@ -180,6 +180,17 @@ tasks.register("printChangelog") {
 	}
 }
 
+// Task to verify changelog is not empty or missing
+tasks.register("verifyChangelog") {
+	doLast {
+		def text = getChangelogText()
+		if (text.startsWith("No changelog provided")) {
+			throw new GradleException("Error: Changelog is missing for version: ${project.version}")
+		}
+		println "Changelog verified successfully."
+	}
+}
+
 modrinth {
 	token = System.getenv("MODRINTH_TOKEN") ?: ""
 	projectId = "small-logic-tweaks"
@@ -198,5 +209,9 @@ modrinth {
 afterEvaluate {
 	modrinth {
 		uploadFile = project.tasks.findByName("remapJar")
+	}
+	def modrinthTask = project.tasks.findByName("modrinth")
+	if (modrinthTask != null) {
+		modrinthTask.dependsOn("verifyChangelog")
 	}
 }

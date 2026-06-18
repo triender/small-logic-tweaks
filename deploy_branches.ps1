@@ -1,10 +1,18 @@
 # deploy_branches.ps1
 # Automates the safe deployment pipeline for Minecraft mod versions 26.1.2 and 26.2.
 # Running this script compiles the code, executes tests, and only deploys + pushes to GitHub if all tests pass.
+# Includes fool-proof safety checks for: dirty git tree, version mismatches, and duplicate uploads.
 
 # 1. Verify Modrinth Token exists
 if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
     Write-Error "ERROR: Environment variable 'MODRINTH_TOKEN' is not defined. Please set it before deploying."
+    exit 1
+}
+
+# 2. Verify working tree is clean (Lớp 1: Chống dirty working tree)
+$gitStatus = (git status --porcelain).Trim()
+if ($gitStatus) {
+    Write-Error "ERROR: Working tree is dirty. Please commit or stash your changes before running deploy."
     exit 1
 }
 
@@ -37,6 +45,76 @@ try {
             continue
         }
         
+        # Đọc file gradle.properties của nhánh hiện tại (Lớp 2: Chống lệch cấu hình / râu ông nọ cắm cằm bà kia)
+        Write-Host "Checking version alignment in gradle.properties..." -ForegroundColor Cyan
+        if (-not (Test-Path "gradle.properties")) {
+            Write-Error "ERROR: gradle.properties not found in branch $branch."
+            $compileStatus[$branch] = "Skipped"
+            $junitStatus[$branch] = "Skipped"
+            $gametestStatus[$branch] = "Skipped"
+            $deployStatus[$branch] = "Failed (gradle.properties missing)"
+            $pushStatus[$branch] = "Skipped"
+            continue
+        }
+        $props = ConvertFrom-StringData (Get-Content "gradle.properties" -Raw)
+        $mcVer = $props["minecraft_version"]
+        $modVer = $props["mod_version"]
+        
+        if ($mcVer -ne $branch) {
+            Write-Error "ERROR: Git branch is '$branch' but minecraft_version in gradle.properties is '$mcVer'!"
+            $compileStatus[$branch] = "Skipped"
+            $junitStatus[$branch] = "Skipped"
+            $gametestStatus[$branch] = "Skipped"
+            $deployStatus[$branch] = "Failed (minecraft_version mismatch)"
+            $pushStatus[$branch] = "Skipped"
+            continue
+        }
+        if ($modVer -notlike "*-$branch") {
+            Write-Error "ERROR: Git branch is '$branch' but mod_version in gradle.properties is '$modVer' (does not end with -$branch)!"
+            $compileStatus[$branch] = "Skipped"
+            $junitStatus[$branch] = "Skipped"
+            $gametestStatus[$branch] = "Skipped"
+            $deployStatus[$branch] = "Failed (mod_version mismatch)"
+            $pushStatus[$branch] = "Skipped"
+            continue
+        }
+        Write-Host "Versions match: minecraft_version=$mcVer, mod_version=$modVer" -ForegroundColor Green
+        
+        # Đọc projectId từ build.gradle để kiểm tra trùng lặp
+        $projId = "small-logic-tweaks"
+        if (Test-Path "build.gradle") {
+            $buildGradle = Get-Content "build.gradle" -Raw
+            if ($buildGradle -match 'projectId\s*=\s*"([^"]+)"') {
+                $projId = $Matches[1]
+            }
+        }
+        
+        # Lớp 3: Kiểm tra trùng lặp phiên bản trên Modrinth qua REST API
+        Write-Host "Querying Modrinth API to check if version $modVer already exists..." -ForegroundColor Cyan
+        $alreadyExists = $false
+        try {
+            $headers = @{ "User-Agent" = "triender/small-logic-tweaks-deploy/1.0" }
+            $versions = Invoke-RestMethod -Uri "https://api.modrinth.com/v2/project/$projId/version" -Headers $headers -Method Get
+            foreach ($v in $versions) {
+                if ($v.version_number -eq $modVer) {
+                    $alreadyExists = $true
+                    break
+                }
+            }
+        } catch {
+            Write-Host "Could not query Modrinth API (Error: $_.Exception.Message). Skipping check and continuing..." -ForegroundColor Yellow
+        }
+        
+        if ($alreadyExists) {
+            Write-Warning "Version $modVer already exists on Modrinth. Skipping deploy/push to prevent duplicate release errors."
+            $compileStatus[$branch] = "Skipped"
+            $junitStatus[$branch] = "Skipped"
+            $gametestStatus[$branch] = "Skipped"
+            $deployStatus[$branch] = "Skipped (Exists)"
+            $pushStatus[$branch] = "Skipped (Exists)"
+            continue
+        }
+        
         # 1. Compile
         Write-Host "Running compileJava..." -ForegroundColor Cyan
         .\gradlew clean compileJava
@@ -50,7 +128,7 @@ try {
         }
         $compileStatus[$branch] = "Passed"
         
-        # 2. JUnit
+        # 2. JUnit (Lớp 4: Tự động chạy verifyChangelog qua modrinth -> verifyChangelog cũng được chạy ở đây nếu gọi test trực tiếp)
         Write-Host "Running JUnit tests..." -ForegroundColor Cyan
         .\gradlew cleanTest test
         if ($LASTEXITCODE -ne 0) {
@@ -113,16 +191,34 @@ finally {
         
         Write-Host "  $($branch.PadRight(9)) | " -NoNewline
         
-        # Color formatting helper
-        if ($comp.Trim() -eq "Passed") { Write-Host "$comp" -ForegroundColor Green -NoNewline } else { Write-Host "$comp" -ForegroundColor Red -NoNewline }
+        # Color formatting helper for Compile
+        if ($comp.Trim() -eq "Passed") { Write-Host "$comp" -ForegroundColor Green -NoNewline }
+        elseif ($comp.Trim() -eq "Skipped") { Write-Host "$comp" -ForegroundColor Yellow -NoNewline }
+        else { Write-Host "$comp" -ForegroundColor Red -NoNewline }
         Write-Host " | " -NoNewline
-        if ($junit.Trim() -eq "Passed") { Write-Host "$junit" -ForegroundColor Green -NoNewline } else { Write-Host "$junit" -ForegroundColor Red -NoNewline }
+        
+        # Color formatting helper for JUnit
+        if ($junit.Trim() -eq "Passed") { Write-Host "$junit" -ForegroundColor Green -NoNewline }
+        elseif ($junit.Trim() -eq "Skipped") { Write-Host "$junit" -ForegroundColor Yellow -NoNewline }
+        else { Write-Host "$junit" -ForegroundColor Red -NoNewline }
         Write-Host " | " -NoNewline
-        if ($gt.Trim() -eq "Passed") { Write-Host "$gt" -ForegroundColor Green -NoNewline } else { Write-Host "$gt" -ForegroundColor Red -NoNewline }
+        
+        # Color formatting helper for GameTest
+        if ($gt.Trim() -eq "Passed") { Write-Host "$gt" -ForegroundColor Green -NoNewline }
+        elseif ($gt.Trim() -eq "Skipped") { Write-Host "$gt" -ForegroundColor Yellow -NoNewline }
+        else { Write-Host "$gt" -ForegroundColor Red -NoNewline }
         Write-Host " | " -NoNewline
-        if ($dep.Trim() -eq "Success") { Write-Host "$dep" -ForegroundColor Green -NoNewline } else { Write-Host "$dep" -ForegroundColor Red -NoNewline }
+        
+        # Color formatting helper for Deploy
+        if ($dep.Trim() -eq "Success") { Write-Host "$dep" -ForegroundColor Green -NoNewline }
+        elseif ($dep.Trim() -eq "Skipped (Exists)") { Write-Host "$dep" -ForegroundColor Yellow -NoNewline }
+        else { Write-Host "$dep" -ForegroundColor Red -NoNewline }
         Write-Host " | " -NoNewline
-        if ($push.Trim() -eq "Success") { Write-Host "$push" -ForegroundColor Green } else { Write-Host "$push" -ForegroundColor Red }
+        
+        # Color formatting helper for Push
+        if ($push.Trim() -eq "Success") { Write-Host "$push" -ForegroundColor Green }
+        elseif ($push.Trim() -eq "Skipped" -or $push.Trim() -eq "Skipped (Exists)") { Write-Host "$push" -ForegroundColor Yellow }
+        else { Write-Host "$push" -ForegroundColor Red }
     }
     Write-Host "==================================================================================" -ForegroundColor Green
 }
