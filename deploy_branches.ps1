@@ -5,6 +5,14 @@
 
 # 1. Verify Modrinth Token exists
 if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
+    # Fallback to reading from User or Machine environment registry if not inherited in current process
+    $env:MODRINTH_TOKEN = [Environment]::GetEnvironmentVariable("MODRINTH_TOKEN", "User")
+    if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
+        $env:MODRINTH_TOKEN = [Environment]::GetEnvironmentVariable("MODRINTH_TOKEN", "Machine")
+    }
+}
+
+if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
     Write-Error "ERROR: Environment variable 'MODRINTH_TOKEN' is not defined. Please set it before deploying."
     exit 1
 }
