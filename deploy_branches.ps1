@@ -85,8 +85,8 @@ try {
             $pushStatus[$branch] = "Skipped"
             continue
         }
-        if ($modVer -notlike "*-$branch") {
-            Write-Error "ERROR: Git branch is '$branch' but mod_version in gradle.properties is '$modVer' (does not end with -$branch)!"
+        if ($modVer -notlike "*-mc$branch") {
+            Write-Error "ERROR: Git branch is '$branch' but mod_version in gradle.properties is '$modVer' (does not end with -mc$branch)!"
             $compileStatus[$branch] = "Skipped"
             $junitStatus[$branch] = "Skipped"
             $gametestStatus[$branch] = "Skipped"
