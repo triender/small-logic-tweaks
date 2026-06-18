@@ -414,6 +414,8 @@ public class Gametest {
 
         // Tạo MockPlayer (Trả về Player)
         Player mockPlayer = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        BlockPos playerSpawnPos = helper.absolutePos(new BlockPos(1, 2, 1));
+        mockPlayer.setPos(playerSpawnPos.getX() + 0.5D, playerSpawnPos.getY(), playerSpawnPos.getZ() + 0.5D);
 
         // Gọi hàm logic (Bây giờ đã chấp nhận tham số Player)
         SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
@@ -422,7 +424,7 @@ public class Gametest {
         helper.succeedWhen(() -> {
             var spawnedPhantoms = helper.getLevel().getEntitiesOfClass(
                     net.minecraft.world.entity.monster.Phantom.class,
-                    mockPlayer.getBoundingBox().inflate(50.0, 50.0, 50.0)
+                    helper.getBounds().inflate(12.0, 45.0, 12.0)
             );
 
             helper.assertTrue(!spawnedPhantoms.isEmpty(), "Không có Phantom nào được sinh ra.");
@@ -573,12 +575,19 @@ public class Gametest {
             
             // Tạo MockPlayer nằm trong phòng test hiện tại
             Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+            BlockPos playerSpawnPos = helper.absolutePos(new BlockPos(1, 2, 1));
+            mockPlayer.setPos(playerSpawnPos.getX() + 0.5D, playerSpawnPos.getY(), playerSpawnPos.getZ() + 0.5D);
+            
+            // Dọn dẹp các Phantom cũ xung quanh để tránh làm tràn giới hạn (Mob Cap)
+            for (var phantom : helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.monster.Phantom.class, helper.getBounds().inflate(12.0, 45.0, 12.0))) {
+                phantom.discard();
+            }
             
             // 1. Không mang Elytra -> Không spawn (240k < 300k)
             SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
             var phantomsBefore = helper.getLevel().getEntitiesOfClass(
                     net.minecraft.world.entity.monster.Phantom.class,
-                    mockPlayer.getBoundingBox().inflate(50.0, 50.0, 50.0)
+                    helper.getBounds().inflate(12.0, 45.0, 12.0)
             );
             helper.assertTrue(phantomsBefore.isEmpty(), "Lỗi: Không được sinh Phantom khi chưa mang Elytra (240k < 300k).");
             
@@ -589,7 +598,7 @@ public class Gametest {
             helper.succeedWhen(() -> {
                 var phantomsAfter = helper.getLevel().getEntitiesOfClass(
                         net.minecraft.world.entity.monster.Phantom.class,
-                        mockPlayer.getBoundingBox().inflate(50.0, 50.0, 50.0)
+                        helper.getBounds().inflate(12.0, 45.0, 12.0)
                 );
                 helper.assertTrue(!phantomsAfter.isEmpty(), "Lỗi: Phải sinh Phantom khi mang Elytra (240k >= 72k).");
             });
