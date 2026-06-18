@@ -21,7 +21,7 @@ if ([string]::IsNullOrEmpty($env:MODRINTH_TOKEN)) {
 }
 
 # 2. Verify working tree is clean (Lớp 1: Chống dirty working tree)
-$gitStatus = ([string](git status --porcelain)).Trim()
+$gitStatus = "$(git status --porcelain)".Trim()
 if ($gitStatus) {
     Write-Error "ERROR: Working tree is dirty. Please commit or stash your changes before running deploy."
     exit 1
