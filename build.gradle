@@ -2,6 +2,7 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'jacoco'
+	id "com.modrinth.minotaur" version "2.9.0"
 }
 
 version = project.mod_version
@@ -145,3 +146,60 @@ jacocoTestReport {
 		html.required = true
 	}
 }
+
+// Function to dynamically extract changelog for current version
+def getChangelogText() {
+	def changelogFile = rootProject.file("CHANGE_LOG.md")
+	if (!changelogFile.exists()) return "No changelog provided."
+	
+	def versionStr = project.version.toString().split('-')[0]
+	
+	def lines = changelogFile.readLines()
+	def changelogText = ""
+	def foundVersion = false
+	
+	for (line in lines) {
+		if (line.startsWith("# ") && line.contains("Version " + versionStr)) {
+			foundVersion = true
+			continue
+		}
+		if (foundVersion) {
+			if (line.startsWith("---")) {
+				break
+			}
+			changelogText += line + "\n"
+		}
+	}
+	
+	return changelogText.trim() ?: "No changelog provided for version ${versionStr}."
+}
+
+// Task to print the extracted changelog (for verification)
+tasks.register("printChangelog") {
+	doLast {
+		println "--- EXTRACTED CHANGELOG FOR VERSION ${project.version} ---"
+		println getChangelogText()
+		println "--------------------------------------------------------"
+	}
+}
+
+modrinth {
+	token = System.getenv("MODRINTH_TOKEN") ?: ""
+	projectId = "small-logic-tweaks"
+	versionNumber = project.version
+	versionName = "Small Logic Tweaks ${project.version}"
+	versionType = "release"
+	gameVersions = [project.minecraft_version]
+	loaders = ["fabric"]
+	changelog = getChangelogText()
+	
+	dependencies {
+		required.project "fabric-api"
+	}
+}
+
+afterEvaluate {
+	modrinth {
+		uploadFile = project.tasks.findByName("remapJar")
+	}
+}
