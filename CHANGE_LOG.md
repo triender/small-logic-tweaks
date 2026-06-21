@@ -1,5 +1,14 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+### ✨ Added
+- **Hệ thống Bếp lò & Nồi vạc tự phát (Emergent Kitchen):**
+  - **Nướng khô (Dry Roasting):** Cho phép nướng chín thực phẩm sống trực tiếp trên các khối nguồn nhiệt (Lửa, Dung nham, Khối Magma) khi được che phủ bởi một khối nắp đậy (Cửa sập, Đĩa cảm biến, Thảm, Phiến đá).
+  - **Đun sôi trong Vạc (Cauldron Boiling):** Thả các chồng thực phẩm vào Vạc Nước được đun nóng bên dưới sẽ nấu chín tuần tự từng vật phẩm, đẩy thành phẩm lên trên đi kèm hiệu ứng bong bóng nước.
+  - **Giữ chỗ nguồn nhiệt (Stove Reservation Cache):** Mỗi nguồn nhiệt chỉ phục vụ nấu cho đúng 1 thực thể vật phẩm tại một thời điểm để cân bằng game.
+  - **Cách nhiệt bằng Thảm (Carpet Insulation):** Lót thảm lên trên nguồn nhiệt sẽ làm giảm hiệu suất nấu đi $1.5$ lần.
+  - **Hồi phục nhiệt lượng (Heat Decay):** Tiến trình nấu chín của vật phẩm sẽ giảm dần tuyến tính theo thời gian khi bị đẩy hoặc di chuyển ra xa nguồn nhiệt.
+  - **Ngăn chặn gộp chồng (Item Entity Merge Prevention):** Các vật phẩm đang trong quá trình nấu trên bếp lò sẽ không tự động gộp lại với nhau.
+
 ---
 # 🐛 Hotfix (Version 1.4.1)
 
