@@ -764,7 +764,7 @@ public class Gametest {
         BlockPos carpetPos = magmaPos.above();
         
         helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
-        helper.setBlock(carpetPos, (net.minecraft.world.level.block.Block) Blocks.CARPET.white());
+        helper.setBlock(carpetPos, Blocks.WHITE_CARPET);
         
         BlockPos absCarpetPos = helper.absolutePos(carpetPos);
         
