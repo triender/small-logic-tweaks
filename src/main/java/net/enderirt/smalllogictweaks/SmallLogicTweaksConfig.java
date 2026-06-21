@@ -130,8 +130,8 @@ public class SmallLogicTweaksConfig {
     // ==========================================
     // --- AESTHETIC KITCHEN TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
-    public boolean ENABLE_EMERGENT_KITCHEN = true;
+    public String _comment_ENABLE_AESTHETIC_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
+    public boolean ENABLE_AESTHETIC_KITCHEN = true;
 
     public String _comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
     public boolean ENABLE_DRY_ROASTING = true;
@@ -156,27 +156,13 @@ public class SmallLogicTweaksConfig {
         magmaCookTimes.put("minecraft:rabbit", 360);
     }
 
+    public String _comment_aestheticCookResults = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.";
+    public Map<String, String> aestheticCookResults = new java.util.LinkedHashMap<>();
+
     public int getCookTime(net.minecraft.world.item.Item item) {
         String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
         if (this.magmaCookTimes != null && this.magmaCookTimes.containsKey(key)) {
             return this.magmaCookTimes.get(key);
-        }
-        if (item == net.minecraft.world.item.Items.KELP) {
-            return 120;
-        }
-        if (item == net.minecraft.world.item.Items.POTATO 
-                || item == net.minecraft.world.item.Items.COD 
-                || item == net.minecraft.world.item.Items.SALMON 
-                || item == net.minecraft.world.item.Items.TROPICAL_FISH 
-                || item == net.minecraft.world.item.Items.PUFFERFISH) {
-            return 240;
-        }
-        if (item == net.minecraft.world.item.Items.BEEF 
-                || item == net.minecraft.world.item.Items.PORKCHOP 
-                || item == net.minecraft.world.item.Items.CHICKEN 
-                || item == net.minecraft.world.item.Items.MUTTON 
-                || item == net.minecraft.world.item.Items.RABBIT) {
-            return 360;
         }
         return this.DEFAULT_COOK_TIME;
     }
@@ -184,6 +170,20 @@ public class SmallLogicTweaksConfig {
     public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
         if (level == null || rawStack == null || rawStack.isEmpty()) {
             return net.minecraft.world.item.ItemStack.EMPTY;
+        }
+        String rawKey = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(rawStack.getItem()).toString();
+        if (ACTIVE_INSTANCE.aestheticCookResults != null && ACTIVE_INSTANCE.aestheticCookResults.containsKey(rawKey)) {
+            String cookedKey = ACTIVE_INSTANCE.aestheticCookResults.get(rawKey);
+            net.minecraft.resources.Identifier cookedId = net.minecraft.resources.Identifier.tryParse(cookedKey);
+            if (cookedId != null) {
+                var holderOpt = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(cookedId);
+                if (holderOpt.isPresent()) {
+                    net.minecraft.world.item.Item cookedItem = holderOpt.get().value();
+                    if (cookedItem != null && cookedItem != net.minecraft.world.item.Items.AIR) {
+                        return new net.minecraft.world.item.ItemStack(cookedItem, rawStack.getCount());
+                    }
+                }
+            }
         }
         var recipeAccess = level.recipeAccess();
         if (recipeAccess instanceof net.minecraft.world.item.crafting.RecipeManager recipeManager) {
@@ -373,12 +373,13 @@ public class SmallLogicTweaksConfig {
         this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
         this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
         this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
-         this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
-        this._comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
+        this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
+        this._comment_ENABLE_AESTHETIC_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
         this._comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
         this._comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
         this._comment_DEFAULT_COOK_TIME = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.";
         this._comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
+        this._comment_aestheticCookResults = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.

@@ -916,4 +916,53 @@ public class Gametest {
             helper.succeed();
         });
     }
+
+    @GameTest(maxTicks = 550)
+    public void testAestheticCookOverride(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.aestheticCookResults.put("minecraft:porkchop", "minecraft:cooked_beef");
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        BlockPos trapdoorPos = magmaPos.above();
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        helper.setBlock(trapdoorPos, Blocks.IRON_TRAPDOOR);
+        
+        BlockPos absTrapdoorPos = helper.absolutePos(trapdoorPos);
+        net.minecraft.world.entity.item.ItemEntity porkchop = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absTrapdoorPos.getX() + 0.5,
+            absTrapdoorPos.getY() + 0.2,
+            absTrapdoorPos.getZ() + 0.5,
+            new ItemStack(Items.PORKCHOP, 1)
+        );
+        porkchop.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(porkchop);
+        
+        helper.succeedWhen(() -> {
+            helper.assertTrue(porkchop.getItem().is(Items.COOKED_BEEF), "Porkchop should turn into Cooked Beef due to config override");
+        });
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testAestheticValidationRules(GameTestHelper helper) {
+        try {
+            var method = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredMethod("slt$isCookable", net.minecraft.world.level.Level.class, net.minecraft.world.item.ItemStack.class);
+            method.setAccessible(true);
+            
+            net.minecraft.world.entity.item.ItemEntity dummyEntity = new net.minecraft.world.entity.item.ItemEntity(
+                helper.getLevel(), 0, 0, 0, new ItemStack(Items.POTATO)
+            );
+            
+            boolean isPotatoCookable = (boolean) method.invoke(dummyEntity, helper.getLevel(), new ItemStack(Items.POTATO));
+            helper.assertTrue(isPotatoCookable, "Potato (default vanilla smeltable) should be cookable");
+            
+            boolean isDirtCookable = (boolean) method.invoke(dummyEntity, helper.getLevel(), new ItemStack(Items.DIRT));
+            helper.assertFalse(isDirtCookable, "Dirt (non-smeltable) should NOT be cookable");
+            
+            helper.succeed();
+        } catch (Exception e) {
+            helper.fail("Reflection/validation test failed: " + e.getMessage());
+        }
+    }
 }

@@ -34,12 +34,49 @@ public abstract class ItemEntityMixin {
         Identifier.fromNamespaceAndPath("small_logic_tweaks", "magma_cookable")
     );
 
-    private boolean slt$isCookable(ItemStack stack) {
+    @org.spongepowered.asm.mixin.Unique
+    private static final java.util.Map<Item, Boolean> slt$COOKABLE_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @org.spongepowered.asm.mixin.Unique
+    private boolean slt$isCookable(Level level, ItemStack stack) {
         if (stack.isEmpty()) return false;
-        if (stack.is(MAGMA_COOKABLE)) return true;
-        String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes != null 
-            && SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes.containsKey(key);
+        Item item = stack.getItem();
+        Boolean cached = slt$COOKABLE_CACHE.get(item);
+        if (cached != null) {
+            return cached;
+        }
+        boolean isMarked = stack.is(MAGMA_COOKABLE);
+        String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+        if (!isMarked) {
+            isMarked = SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes != null
+                && SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes.containsKey(key);
+        }
+        if (!isMarked) {
+            slt$COOKABLE_CACHE.put(item, false);
+            return false;
+        }
+        net.minecraft.resources.Identifier itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item);
+        String namespace = itemId.getNamespace();
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.aestheticCookResults != null 
+            && SmallLogicTweaksConfig.ACTIVE_INSTANCE.aestheticCookResults.containsKey(key)) {
+            slt$COOKABLE_CACHE.put(item, true);
+            return true;
+        }
+        if (!namespace.equals("minecraft")) {
+            slt$COOKABLE_CACHE.put(item, false);
+            return false;
+        }
+        boolean hasSmelting = false;
+        var recipeAccess = level.recipeAccess();
+        if (recipeAccess instanceof net.minecraft.world.item.crafting.RecipeManager recipeManager) {
+            try {
+                var input = new net.minecraft.world.item.crafting.SingleRecipeInput(stack);
+                hasSmelting = recipeManager.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.SMELTING, input, level).isPresent();
+            } catch (Throwable t) {
+            }
+        }
+        slt$COOKABLE_CACHE.put(item, hasSmelting);
+        return hasSmelting;
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
@@ -50,7 +87,7 @@ public abstract class ItemEntityMixin {
             return;
         }
 
-        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_EMERGENT_KITCHEN) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_AESTHETIC_KITCHEN) {
             if (slt$magmaCookTimer > 0) {
                 slt$magmaCookTimer--;
             }
@@ -58,7 +95,7 @@ public abstract class ItemEntityMixin {
         }
 
         ItemStack stack = this.getItem();
-        if (stack.isEmpty() || !slt$isCookable(stack)) {
+        if (stack.isEmpty() || !slt$isCookable(level, stack)) {
             if (slt$magmaCookTimer > 0) {
                 slt$magmaCookTimer--;
             }
