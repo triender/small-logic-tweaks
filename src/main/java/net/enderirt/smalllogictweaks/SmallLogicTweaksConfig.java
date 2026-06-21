@@ -501,14 +501,14 @@ public class SmallLogicTweaksConfig {
             LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered. Feature disabled locally.");
         }
 
-        // 4. Kiểm tra chéo: Tính năng BẾP LÒ (EMERGENT KITCHEN)
+        // 4. Kiểm tra chéo: Tính năng BẾP LÒ (AESTHETIC KITCHEN)
         if (this.DEFAULT_COOK_TIME != rawReceived.DEFAULT_COOK_TIME ||
                 this.magmaCookTimes == null ||
                 rawReceived.magmaCookTimes == null ||
                 this.magmaCookTimes.size() != rawReceived.magmaCookTimes.size()) {
 
-            this.ENABLE_EMERGENT_KITCHEN = false;
-            LOGGER.warn("[Failsafe] Emergent Kitchen configurations were tampered. Feature disabled locally.");
+            this.ENABLE_AESTHETIC_KITCHEN = false;
+            LOGGER.warn("[Failsafe] Aesthetic Kitchen configurations were tampered. Feature disabled locally.");
         }
 
         // Lưu ý: Các tính năng Boolean thuần túy (như Bone Meal) không cần failsafe
