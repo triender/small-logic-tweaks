@@ -36,6 +36,7 @@ public abstract class ItemEntityMergeMixin {
     }
 
     private boolean slt$isOnActiveStove(ItemEntity entity) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_EMERGENT_KITCHEN || !SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DRY_ROASTING) return false;
         Level level = entity.level();
         if (level.isClientSide()) return false;
         ItemStack stack = entity.getItem();

@@ -1,14 +1,23 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+---
+# 🍳 Aesthetic Kitchen Update (Version 1.5.0)
+
 ### ✨ Added
-- **Hệ thống Bếp lò & Nồi vạc tự phát (Emergent Kitchen):**
-  - **Nướng khô (Dry Roasting):** Cho phép nướng chín thực phẩm sống trực tiếp trên các khối nguồn nhiệt (Lửa, Dung nham, Khối Magma) khi được che phủ bởi một khối nắp đậy (Cửa sập, Đĩa cảm biến, Thảm, Phiến đá).
-  - **Đun sôi trong Vạc (Cauldron Boiling):** Thả các chồng thực phẩm vào Vạc Nước được đun nóng bên dưới sẽ nấu chín tuần tự từng vật phẩm, đẩy thành phẩm lên trên đi kèm hiệu ứng bong bóng nước.
-  - **Giữ chỗ nguồn nhiệt (Stove Reservation Cache):** Mỗi nguồn nhiệt chỉ phục vụ nấu cho đúng 1 thực thể vật phẩm tại một thời điểm để cân bằng game.
-  - **Cách nhiệt bằng Thảm (Carpet Insulation):** Lót thảm lên trên nguồn nhiệt sẽ làm giảm hiệu suất nấu đi $1.5$ lần.
-  - **Hồi phục nhiệt lượng (Heat Decay):** Tiến trình nấu chín của vật phẩm sẽ giảm dần tuyến tính theo thời gian khi bị đẩy hoặc di chuyển ra xa nguồn nhiệt.
-  - **Hiệu ứng Âm thanh & Hạt (Visual & Sound Effects):** Thêm âm thanh lách tách lửa/bong bóng sôi định kỳ khi nấu, tiếng xèo xèo/tiếng sôi trào kèm theo các hạt khói/bọt nước bắn tung tóe khi hoàn thành nấu chín vật phẩm.
-  - **Ngăn chặn gộp chồng (Item Entity Merge Prevention):** Các vật phẩm đang trong quá trình nấu trên bếp lò sẽ không tự động gộp lại với nhau.
+* **Aesthetic Kitchen System:** Converts decorative, non-functional kitchen designs into interactive, physics-based cooking stations without introducing new custom blocks.
+* **Dry Roasting:** Allows raw food entities to be slowly roasted when placed directly on heat sources (Magma, Fire, Lava) even when covered by Trapdoors, Pressure Plates, Slabs, or Carpets.
+* **Cauldron Boiling:** Enables food stacks dropped into a heated Water Cauldron to be sequentially boiled, spawning cooked items one by one with a water-pop effect.
+* **Immersive Audio & Visuals:** Introduces dynamic cooking feedback, including crackling fire sounds, boiling bubbles, smoke particles, and specific sizzle or splash effects upon cooking completion.
+* **Carpet Insulation:** Simulates thermal insulation where placing a wool carpet over a heat source reduces the overall cooking speed by 1.5x.
+* **Thermodynamics (Heat Decay):** Implements progress retention where cooking progress gradually decays linearly over time if the food item is moved or pushed away from the heat source.
+
+### ⚙️ Changed
+* **Stove Reservation Cache:** Restricts each heat source block to process only one food item entity at a time to maintain gameplay balance and prevent mass-cooking exploitation.
+
+### 🛡️ Security
+* **Item Entity Merge Prevention:** Prevents food items undergoing the cooking process from automatically merging with other dropped items, eliminating duplication exploits and stack-processing bugs.
+
+**Status:** Released. Feedback is welcome!
 
 ---
 # 🐛 Hotfix (Version 1.4.1)
