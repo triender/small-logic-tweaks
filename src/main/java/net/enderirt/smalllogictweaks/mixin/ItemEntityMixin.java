@@ -19,6 +19,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 
 @Mixin(ItemEntity.class)
 public abstract class ItemEntityMixin {
@@ -160,6 +162,19 @@ public abstract class ItemEntityMixin {
         // Heat and progress
         slt$magmaCookTimer++;
 
+        // Play sounds periodically while cooking (every 2-3 seconds on average)
+        if (level.getRandom().nextInt(40) == 0) {
+            if (isCauldron) {
+                level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
+                    SoundEvents.BUBBLE_COLUMN_BUBBLE_POP, SoundSource.BLOCKS,
+                    0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+            } else {
+                level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
+                    SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS,
+                    0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+            }
+        }
+
         // Particles
         if (level instanceof ServerLevel serverLevel) {
             if (isCauldron) {
@@ -168,6 +183,14 @@ public abstract class ItemEntityMixin {
                     entity.getX(), entity.getY() + 0.1, entity.getZ(),
                     1, 0.1, 0.1, 0.1, 0.0
                 );
+                // Also add a little bit of steam
+                if (level.getRandom().nextInt(4) == 0) {
+                    serverLevel.sendParticles(
+                        ParticleTypes.SMOKE,
+                        entity.getX(), entity.getY() + 0.35, entity.getZ(),
+                        1, 0.05, 0.05, 0.05, 0.0
+                    );
+                }
             } else {
                 serverLevel.sendParticles(
                     ParticleTypes.SMOKE,
@@ -197,9 +220,26 @@ public abstract class ItemEntityMixin {
                         (level.getRandom().nextFloat() - 0.5) * 0.1
                     );
                     level.addFreshEntity(cookedEntity);
+
+                    // Boil complete: splash sound and bubble burst particles
+                    level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
+                        SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS,
+                        0.7f, 1.2f);
+                    if (level instanceof ServerLevel serverLevel) {
+                        serverLevel.sendParticles(ParticleTypes.BUBBLE, entity.getX(), entity.getY() + 0.4, entity.getZ(), 6, 0.15, 0.15, 0.15, 0.05);
+                        serverLevel.sendParticles(ParticleTypes.SPLASH, entity.getX(), entity.getY() + 0.4, entity.getZ(), 4, 0.15, 0.15, 0.15, 0.05);
+                    }
                 } else {
                     // Dry roasting replaces in place
                     this.setItem(cookedResult.copy());
+
+                    // Roasting complete: sizzle/extinguish sound and smoke burst particles
+                    level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
+                        SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS,
+                        0.4f, 1.5f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+                    if (level instanceof ServerLevel serverLevel) {
+                        serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, entity.getX(), entity.getY() + 0.2, entity.getZ(), 5, 0.15, 0.1, 0.15, 0.02);
+                    }
                 }
             }
             slt$magmaCookTimer = 0;
