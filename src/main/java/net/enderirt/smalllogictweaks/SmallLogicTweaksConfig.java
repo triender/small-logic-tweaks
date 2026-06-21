@@ -126,6 +126,68 @@ public class SmallLogicTweaksConfig {
 
     public String _comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
     public int PHANTOM_MOB_CAP = 8;
+
+    // ==========================================
+    // --- EMERGENT KITCHEN TWEAK CONFIGURATION ---
+    // ==========================================
+    public String _comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
+    public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
+    {
+        magmaCookTimes.put("minecraft:kelp", 120);
+        magmaCookTimes.put("minecraft:potato", 240);
+        magmaCookTimes.put("minecraft:cod", 240);
+        magmaCookTimes.put("minecraft:salmon", 240);
+        magmaCookTimes.put("minecraft:beef", 360);
+        magmaCookTimes.put("minecraft:porkchop", 360);
+        magmaCookTimes.put("minecraft:chicken", 360);
+        magmaCookTimes.put("minecraft:mutton", 360);
+        magmaCookTimes.put("minecraft:rabbit", 360);
+    }
+
+    public int getCookTime(net.minecraft.world.item.Item item) {
+        String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+        if (this.magmaCookTimes != null && this.magmaCookTimes.containsKey(key)) {
+            return this.magmaCookTimes.get(key);
+        }
+        if (item == net.minecraft.world.item.Items.KELP) {
+            return 120;
+        }
+        if (item == net.minecraft.world.item.Items.POTATO 
+                || item == net.minecraft.world.item.Items.COD 
+                || item == net.minecraft.world.item.Items.SALMON 
+                || item == net.minecraft.world.item.Items.TROPICAL_FISH 
+                || item == net.minecraft.world.item.Items.PUFFERFISH) {
+            return 240;
+        }
+        if (item == net.minecraft.world.item.Items.BEEF 
+                || item == net.minecraft.world.item.Items.PORKCHOP 
+                || item == net.minecraft.world.item.Items.CHICKEN 
+                || item == net.minecraft.world.item.Items.MUTTON 
+                || item == net.minecraft.world.item.Items.RABBIT) {
+            return 360;
+        }
+        return 240;
+    }
+
+    public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
+        if (level == null || rawStack == null || rawStack.isEmpty()) {
+            return net.minecraft.world.item.ItemStack.EMPTY;
+        }
+        var recipeAccess = level.recipeAccess();
+        if (recipeAccess instanceof net.minecraft.world.item.crafting.RecipeManager recipeManager) {
+            try {
+                var input = new net.minecraft.world.item.crafting.SingleRecipeInput(rawStack);
+                var recipeOpt = recipeManager.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.SMELTING, input, level);
+                if (recipeOpt.isPresent()) {
+                    return recipeOpt.get().value().assemble(input);
+                }
+            } catch (Throwable t) {
+                // Fallback for older versions if API differs
+            }
+        }
+        return net.minecraft.world.item.ItemStack.EMPTY;
+    }
+
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
