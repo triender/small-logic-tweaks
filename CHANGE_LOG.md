@@ -7,6 +7,7 @@
   - **Giữ chỗ nguồn nhiệt (Stove Reservation Cache):** Mỗi nguồn nhiệt chỉ phục vụ nấu cho đúng 1 thực thể vật phẩm tại một thời điểm để cân bằng game.
   - **Cách nhiệt bằng Thảm (Carpet Insulation):** Lót thảm lên trên nguồn nhiệt sẽ làm giảm hiệu suất nấu đi $1.5$ lần.
   - **Hồi phục nhiệt lượng (Heat Decay):** Tiến trình nấu chín của vật phẩm sẽ giảm dần tuyến tính theo thời gian khi bị đẩy hoặc di chuyển ra xa nguồn nhiệt.
+  - **Hiệu ứng Âm thanh & Hạt (Visual & Sound Effects):** Thêm âm thanh lách tách lửa/bong bóng sôi định kỳ khi nấu, tiếng xèo xèo/tiếng sôi trào kèm theo các hạt khói/bọt nước bắn tung tóe khi hoàn thành nấu chín vật phẩm.
   - **Ngăn chặn gộp chồng (Item Entity Merge Prevention):** Các vật phẩm đang trong quá trình nấu trên bếp lò sẽ không tự động gộp lại với nhau.
 
 ---
