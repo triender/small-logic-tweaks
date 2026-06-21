@@ -812,12 +812,13 @@ public class Gametest {
         potato.setDeltaMovement(0, 0, 0);
         helper.getLevel().addFreshEntity(potato);
         
+        final int[] heatAt30 = new int[1];
         helper.runAtTickTime(30, () -> {
             try {
                 var field = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredField("slt$magmaCookTimer");
                 field.setAccessible(true);
-                int heat = (int) field.get(potato);
-                helper.assertTrue(heat > 0, "Cook timer should have increased after 30 ticks near magma");
+                heatAt30[0] = (int) field.get(potato);
+                helper.assertTrue(heatAt30[0] > 0, "Cook timer should have increased after 30 ticks near magma");
                 
                 potato.setPos(absTrapdoorPos.getX() + 10.0, absTrapdoorPos.getY() + 5.0, absTrapdoorPos.getZ() + 10.0);
             } catch (Exception e) {
@@ -825,16 +826,94 @@ public class Gametest {
             }
         });
         
-        helper.runAtTickTime(60, () -> {
+        helper.runAtTickTime(70, () -> {
             try {
                 var field = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredField("slt$magmaCookTimer");
                 field.setAccessible(true);
                 int heat = (int) field.get(potato);
-                helper.assertTrue(heat < 30, "Cook timer should have decayed after moving away from heat source");
+                helper.assertTrue(heat < heatAt30[0], "Cook timer should have decayed after moving away from heat source. heat=" + heat + ", initial=" + heatAt30[0]);
                 helper.succeed();
             } catch (Exception e) {
                 helper.fail("Reflection error: " + e.getMessage());
             }
+        });
+    }
+
+    @GameTest(maxTicks = 350)
+    public void testDryRoastingOnBareMagma(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        
+        BlockPos absMagmaPos = helper.absolutePos(magmaPos);
+        net.minecraft.world.entity.item.ItemEntity potato = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absMagmaPos.getX() + 0.5,
+            absMagmaPos.getY() + 1.2,
+            absMagmaPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 1)
+        );
+        potato.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(potato);
+        
+        helper.succeedWhen(() -> {
+            helper.assertTrue(potato.getItem().is(Items.BAKED_POTATO), "Potato directly on magma should cook");
+        });
+    }
+
+    @GameTest(maxTicks = 350)
+    public void testNonCookableItemNotRoasting(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        
+        BlockPos absMagmaPos = helper.absolutePos(magmaPos);
+        net.minecraft.world.entity.item.ItemEntity dirt = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absMagmaPos.getX() + 0.5,
+            absMagmaPos.getY() + 1.2,
+            absMagmaPos.getZ() + 0.5,
+            new ItemStack(Items.DIRT, 1)
+        );
+        dirt.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(dirt);
+        
+        helper.runAtTickTime(100, () -> {
+            try {
+                var field = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredField("slt$magmaCookTimer");
+                field.setAccessible(true);
+                int heat = (int) field.get(dirt);
+                helper.assertTrue(heat == 0, "Non-cookable item should not accumulate cooking progress");
+                helper.succeed();
+            } catch (Exception e) {
+                helper.fail("Reflection error: " + e.getMessage());
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 350)
+    public void testDryRoastingStackSizePrevention(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        
+        BlockPos absMagmaPos = helper.absolutePos(magmaPos);
+        net.minecraft.world.entity.item.ItemEntity potatoes = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absMagmaPos.getX() + 0.5,
+            absMagmaPos.getY() + 1.2,
+            absMagmaPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 2)
+        );
+        potatoes.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(potatoes);
+        
+        helper.runAtTickTime(200, () -> {
+            helper.assertTrue(potatoes.getItem().is(Items.POTATO) && potatoes.getItem().getCount() == 2, "Stack of 2 potatoes should not be dry roasted");
+            helper.succeed();
         });
     }
 }
