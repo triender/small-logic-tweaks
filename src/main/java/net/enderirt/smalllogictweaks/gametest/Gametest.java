@@ -655,4 +655,186 @@ public class Gametest {
         
         helper.succeed();
     }
+    @GameTest(maxTicks = 350)
+    public void testDryRoastingOnCoveredStove(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        BlockPos trapdoorPos = magmaPos.above();
+        
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        helper.setBlock(trapdoorPos, Blocks.IRON_TRAPDOOR);
+        
+        BlockPos absTrapdoorPos = helper.absolutePos(trapdoorPos);
+        net.minecraft.world.entity.item.ItemEntity potato = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absTrapdoorPos.getX() + 0.5,
+            absTrapdoorPos.getY() + 0.2,
+            absTrapdoorPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 1)
+        );
+        potato.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(potato);
+        
+        helper.succeedWhen(() -> {
+            helper.assertTrue(potato.getItem().is(Items.BAKED_POTATO), "Potato should turn into Baked Potato");
+        });
+    }
+
+    @GameTest(maxTicks = 350)
+    public void testStoveReservationBlock(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        BlockPos trapdoorPos = magmaPos.above();
+        
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        helper.setBlock(trapdoorPos, Blocks.IRON_TRAPDOOR);
+        
+        BlockPos absTrapdoorPos = helper.absolutePos(trapdoorPos);
+        
+        net.minecraft.world.entity.item.ItemEntity potato1 = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absTrapdoorPos.getX() + 0.5,
+            absTrapdoorPos.getY() + 0.2,
+            absTrapdoorPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 1)
+        );
+        potato1.setDeltaMovement(0, 0, 0);
+        net.minecraft.world.entity.item.ItemEntity potato2 = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absTrapdoorPos.getX() + 0.5,
+            absTrapdoorPos.getY() + 0.2,
+            absTrapdoorPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 1)
+        );
+        potato2.setDeltaMovement(0, 0, 0);
+        
+        helper.getLevel().addFreshEntity(potato1);
+        helper.getLevel().addFreshEntity(potato2);
+        
+        helper.succeedWhen(() -> {
+            boolean isOneCooked = potato1.getItem().is(Items.BAKED_POTATO) || potato2.getItem().is(Items.BAKED_POTATO);
+            boolean isBothCooked = potato1.getItem().is(Items.BAKED_POTATO) && potato2.getItem().is(Items.BAKED_POTATO);
+            
+            helper.assertTrue(isOneCooked, "At least one potato should be cooked");
+            helper.assertFalse(isBothCooked, "Both potatoes should NOT be cooked because of stove reservation cache");
+        });
+    }
+
+    @GameTest(maxTicks = 550)
+    public void testCauldronSequentialBoiling(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos lavaPos = new BlockPos(1, 1, 1);
+        BlockPos cauldronPos = lavaPos.above();
+        
+        helper.setBlock(lavaPos, Blocks.LAVA);
+        helper.setBlock(cauldronPos, Blocks.WATER_CAULDRON);
+        
+        BlockPos absCauldronPos = helper.absolutePos(cauldronPos);
+        
+        net.minecraft.world.entity.item.ItemEntity beefStack = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absCauldronPos.getX() + 0.5,
+            absCauldronPos.getY() + 0.5,
+            absCauldronPos.getZ() + 0.5,
+            new ItemStack(Items.BEEF, 5)
+        );
+        helper.getLevel().addFreshEntity(beefStack);
+        
+        helper.succeedWhen(() -> {
+            int rawCount = beefStack.getItem().getCount();
+            var cookedBeefs = helper.getLevel().getEntitiesOfClass(
+                net.minecraft.world.entity.item.ItemEntity.class,
+                new net.minecraft.world.phys.AABB(absCauldronPos).inflate(2.0),
+                entity -> entity.getItem().is(Items.COOKED_BEEF)
+            );
+            
+            helper.assertTrue(rawCount < 5, "Beef stack should decrease in size");
+            helper.assertTrue(!cookedBeefs.isEmpty(), "Cooked beef should be spawned");
+        });
+    }
+
+    @GameTest(maxTicks = 350)
+    public void testCarpetHeatReduction(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        BlockPos carpetPos = magmaPos.above();
+        
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        helper.setBlock(carpetPos, (net.minecraft.world.level.block.Block) Blocks.CARPET.white());
+        
+        BlockPos absCarpetPos = helper.absolutePos(carpetPos);
+        
+        net.minecraft.world.entity.item.ItemEntity kelp = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absCarpetPos.getX() + 0.5,
+            absCarpetPos.getY() + 0.2,
+            absCarpetPos.getZ() + 0.5,
+            new ItemStack(Items.KELP, 1)
+        );
+        kelp.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(kelp);
+        
+        helper.succeedWhen(() -> {
+            long age = kelp.tickCount;
+            if (age < 135) {
+                helper.assertTrue(kelp.getItem().is(Items.KELP), "Kelp should still be raw before 135 ticks due to carpet insulation");
+            }
+            helper.assertTrue(kelp.getItem().is(Items.DRIED_KELP) || age < 135, "Kelp should eventually dry");
+            if (kelp.getItem().is(Items.DRIED_KELP)) {
+                helper.succeed();
+            }
+        });
+    }
+
+    @GameTest(maxTicks = 100)
+    public void testHeatDecayWhenMoved(GameTestHelper helper) {
+        helper.getLevel().getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, helper.getLevel().getServer());
+        
+        BlockPos magmaPos = new BlockPos(1, 1, 1);
+        BlockPos trapdoorPos = magmaPos.above();
+        
+        helper.setBlock(magmaPos, Blocks.MAGMA_BLOCK);
+        helper.setBlock(trapdoorPos, Blocks.IRON_TRAPDOOR);
+        
+        BlockPos absTrapdoorPos = helper.absolutePos(trapdoorPos);
+        
+        net.minecraft.world.entity.item.ItemEntity potato = new net.minecraft.world.entity.item.ItemEntity(
+            helper.getLevel(),
+            absTrapdoorPos.getX() + 0.5,
+            absTrapdoorPos.getY() + 0.2,
+            absTrapdoorPos.getZ() + 0.5,
+            new ItemStack(Items.POTATO, 1)
+        );
+        potato.setDeltaMovement(0, 0, 0);
+        helper.getLevel().addFreshEntity(potato);
+        
+        helper.runAtTickTime(30, () -> {
+            try {
+                var field = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredField("slt$magmaCookTimer");
+                field.setAccessible(true);
+                int heat = (int) field.get(potato);
+                helper.assertTrue(heat > 0, "Cook timer should have increased after 30 ticks near magma");
+                
+                potato.setPos(absTrapdoorPos.getX() + 10.0, absTrapdoorPos.getY() + 5.0, absTrapdoorPos.getZ() + 10.0);
+            } catch (Exception e) {
+                helper.fail("Reflection error: " + e.getMessage());
+            }
+        });
+        
+        helper.runAtTickTime(60, () -> {
+            try {
+                var field = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredField("slt$magmaCookTimer");
+                field.setAccessible(true);
+                int heat = (int) field.get(potato);
+                helper.assertTrue(heat < 30, "Cook timer should have decayed after moving away from heat source");
+                helper.succeed();
+            } catch (Exception e) {
+                helper.fail("Reflection error: " + e.getMessage());
+            }
+        });
+    }
 }

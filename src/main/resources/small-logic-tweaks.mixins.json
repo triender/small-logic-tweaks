@@ -5,7 +5,9 @@
 	"mixins": [
 		"TimberMiningSpeedMixin",
 		"ThrownPotionMixin",
-		"ServerPlayerMixin"
+		"ServerPlayerMixin",
+		"ItemEntityMixin",
+		"ItemEntityMergeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

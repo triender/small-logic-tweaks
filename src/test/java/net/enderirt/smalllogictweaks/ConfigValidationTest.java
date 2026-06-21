@@ -24,4 +24,5 @@ public class ConfigValidationTest {
         Assertions.assertEquals(5, testConfig.MAX_LOG_HORIZONTAL_RADIUS,
                 "Hệ thống phải giới hạn bán kính quét gỗ tối đa là 5");
     }
+
 }
