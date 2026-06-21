@@ -50,6 +50,13 @@ public abstract class ItemEntityMixin {
             return;
         }
 
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_EMERGENT_KITCHEN) {
+            if (slt$magmaCookTimer > 0) {
+                slt$magmaCookTimer--;
+            }
+            return;
+        }
+
         ItemStack stack = this.getItem();
         if (stack.isEmpty() || !slt$isCookable(stack)) {
             if (slt$magmaCookTimer > 0) {
@@ -81,7 +88,7 @@ public abstract class ItemEntityMixin {
             }
         }
 
-        boolean isCauldron = cauldronPos != null;
+        boolean isCauldron = cauldronPos != null && SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_CAULDRON_BOILING;
         BlockPos heatSourcePos = null;
         float heatMultiplier = 0.0f;
         BlockPos coverPos = null;
@@ -89,7 +96,7 @@ public abstract class ItemEntityMixin {
         if (isCauldron) {
             heatSourcePos = cauldronHeatSourcePos;
             heatMultiplier = cauldronHeatMultiplier;
-        } else {
+        } else if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DRY_ROASTING) {
             // 2. Check for Dry Roasting
             BlockState stateAtEntity = level.getBlockState(entityPos);
             BlockState stateBelowEntity = level.getBlockState(entityPos.below());

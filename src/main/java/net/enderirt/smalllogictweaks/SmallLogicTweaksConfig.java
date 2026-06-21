@@ -130,6 +130,15 @@ public class SmallLogicTweaksConfig {
     // ==========================================
     // --- EMERGENT KITCHEN TWEAK CONFIGURATION ---
     // ==========================================
+    public String _comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Emergent Kitchen system.";
+    public boolean ENABLE_EMERGENT_KITCHEN = true;
+
+    public String _comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
+    public boolean ENABLE_DRY_ROASTING = true;
+
+    public String _comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
+    public boolean ENABLE_CAULDRON_BOILING = true;
+
     public String _comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
     public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
     {
@@ -362,6 +371,10 @@ public class SmallLogicTweaksConfig {
         this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
         this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
         this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
+        this._comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Emergent Kitchen system.";
+        this._comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
+        this._comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
+        this._comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
