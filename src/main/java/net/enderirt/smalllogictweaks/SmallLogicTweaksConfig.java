@@ -139,6 +139,9 @@ public class SmallLogicTweaksConfig {
     public String _comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
     public boolean ENABLE_CAULDRON_BOILING = true;
 
+    public String _comment_DEFAULT_COOK_TIME = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.";
+    public int DEFAULT_COOK_TIME = 240;
+
     public String _comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
     public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
     {
@@ -175,7 +178,7 @@ public class SmallLogicTweaksConfig {
                 || item == net.minecraft.world.item.Items.RABBIT) {
             return 360;
         }
-        return 240;
+        return this.DEFAULT_COOK_TIME;
     }
 
     public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
