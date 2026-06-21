@@ -128,9 +128,9 @@ public class SmallLogicTweaksConfig {
     public int PHANTOM_MOB_CAP = 8;
 
     // ==========================================
-    // --- EMERGENT KITCHEN TWEAK CONFIGURATION ---
+    // --- AESTHETIC KITCHEN TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Emergent Kitchen system.";
+    public String _comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
     public boolean ENABLE_EMERGENT_KITCHEN = true;
 
     public String _comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
@@ -138,6 +138,9 @@ public class SmallLogicTweaksConfig {
 
     public String _comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
     public boolean ENABLE_CAULDRON_BOILING = true;
+
+    public String _comment_DEFAULT_COOK_TIME = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.";
+    public int DEFAULT_COOK_TIME = 240;
 
     public String _comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
     public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
@@ -175,7 +178,7 @@ public class SmallLogicTweaksConfig {
                 || item == net.minecraft.world.item.Items.RABBIT) {
             return 360;
         }
-        return 240;
+        return this.DEFAULT_COOK_TIME;
     }
 
     public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
@@ -370,10 +373,11 @@ public class SmallLogicTweaksConfig {
         this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
         this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
         this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
-        this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
-        this._comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Emergent Kitchen system.";
+         this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
+        this._comment_ENABLE_EMERGENT_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
         this._comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
         this._comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
+        this._comment_DEFAULT_COOK_TIME = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.";
         this._comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
 
         // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
@@ -448,6 +452,23 @@ public class SmallLogicTweaksConfig {
             LOGGER.error("Invalid value for 'PHANTOM_MOB_CAP' ({}). Must be between 0 and 100. Resetting to default: 8", this.PHANTOM_MOB_CAP);
             this.PHANTOM_MOB_CAP = 8;
         }
+
+        // Khống chế khoảng thời gian nấu mặc định của bếp lò (từ 20 tick đến 72000 tick)
+        if (this.DEFAULT_COOK_TIME < 20 || this.DEFAULT_COOK_TIME > 72000) {
+            LOGGER.error("Invalid default cook time: {}. Must be between 20 and 72000 ticks. Resetting to default: 240", this.DEFAULT_COOK_TIME);
+            this.DEFAULT_COOK_TIME = 240;
+        }
+
+        if (this.magmaCookTimes == null) {
+            this.magmaCookTimes = new java.util.LinkedHashMap<>();
+        } else {
+            for (var entry : this.magmaCookTimes.entrySet()) {
+                if (entry.getValue() < 20 || entry.getValue() > 72000) {
+                    LOGGER.error("Invalid cook time for item {}: {}. Must be between 20 and 72000. Resetting to default: 240", entry.getKey(), entry.getValue());
+                    entry.setValue(240);
+                }
+            }
+        }
     }
 
     public void fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
@@ -467,10 +488,26 @@ public class SmallLogicTweaksConfig {
 
         // 3. Kiểm tra chéo: Tính năng PHANTOM
         if (this.PHANTOM_MOB_CAP != rawReceived.PHANTOM_MOB_CAP ||
-                this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT /* ... các biến Phantom khác ... */) {
+                this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT ||
+                this.PHANTOM_MAX_COUNT != rawReceived.PHANTOM_MAX_COUNT ||
+                this.PHANTOM_CHECK_COOLDOWN != rawReceived.PHANTOM_CHECK_COOLDOWN ||
+                this.PHANTOM_THRESHOLD_PRE_ELYTRA != rawReceived.PHANTOM_THRESHOLD_PRE_ELYTRA ||
+                this.PHANTOM_THRESHOLD_POST_ELYTRA != rawReceived.PHANTOM_THRESHOLD_POST_ELYTRA ||
+                this.PHANTOM_MIN_SPAWN_HEIGHT != rawReceived.PHANTOM_MIN_SPAWN_HEIGHT ||
+                this.PHANTOM_MAX_SPAWN_HEIGHT != rawReceived.PHANTOM_MAX_SPAWN_HEIGHT) {
 
             this.ENABLE_END_PHANTOM = false;
             LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered. Feature disabled locally.");
+        }
+
+        // 4. Kiểm tra chéo: Tính năng BẾP LÒ (EMERGENT KITCHEN)
+        if (this.DEFAULT_COOK_TIME != rawReceived.DEFAULT_COOK_TIME ||
+                this.magmaCookTimes == null ||
+                rawReceived.magmaCookTimes == null ||
+                this.magmaCookTimes.size() != rawReceived.magmaCookTimes.size()) {
+
+            this.ENABLE_EMERGENT_KITCHEN = false;
+            LOGGER.warn("[Failsafe] Emergent Kitchen configurations were tampered. Feature disabled locally.");
         }
 
         // Lưu ý: Các tính năng Boolean thuần túy (như Bone Meal) không cần failsafe
