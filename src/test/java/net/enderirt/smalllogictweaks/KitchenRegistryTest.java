@@ -2,6 +2,9 @@ package net.enderirt.smalllogictweaks;
 
 import net.enderirt.smalllogictweaks.network.KitchenRegistry;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -9,6 +12,11 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 public class KitchenRegistryTest {
+
+    private static final ResourceKey<?> OVERWORLD =
+            ResourceKey.create(Registries.DIMENSION, Identifier.fromNamespaceAndPath("minecraft", "overworld"));
+    private static final ResourceKey<?> NETHER =
+            ResourceKey.create(Registries.DIMENSION, Identifier.fromNamespaceAndPath("minecraft", "the_nether"));
 
     @BeforeEach
     public void setUp() {
@@ -58,5 +66,20 @@ public class KitchenRegistryTest {
         // Entity B registers at tick 1001 (A did not tick / update its reservation at 1001)
         boolean resultB = KitchenRegistry.tryReserve(stovePos, entityB, 1001);
         Assertions.assertTrue(resultB, "Entity B should succeed at tick 1001 because Entity A's reservation expired.");
+    }
+
+    @Test
+    public void testDimensionIsolation() {
+        BlockPos samePos = new BlockPos(10, 64, 10);
+        UUID entityOverworld = UUID.randomUUID();
+        UUID entityNether = UUID.randomUUID();
+
+        // Entity in Overworld reserves at tick 200
+        boolean resultOverworld = KitchenRegistry.tryReserve(OVERWORLD, samePos, entityOverworld, 200);
+        Assertions.assertTrue(resultOverworld, "Overworld entity should reserve stove.");
+
+        // Entity in Nether at the EXACT SAME BlockPos reserves at the same tick 200
+        boolean resultNether = KitchenRegistry.tryReserve(NETHER, samePos, entityNether, 200);
+        Assertions.assertTrue(resultNether, "Nether entity should successfully reserve because dimensions are isolated.");
     }
 }

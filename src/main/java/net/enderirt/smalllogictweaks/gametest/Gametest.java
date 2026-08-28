@@ -946,23 +946,12 @@ public class Gametest {
 
     @GameTest(maxTicks = 10)
     public void testAestheticValidationRules(GameTestHelper helper) {
-        try {
-            var method = net.minecraft.world.entity.item.ItemEntity.class.getDeclaredMethod("slt$isCookable", net.minecraft.world.level.Level.class, net.minecraft.world.item.ItemStack.class);
-            method.setAccessible(true);
-            
-            net.minecraft.world.entity.item.ItemEntity dummyEntity = new net.minecraft.world.entity.item.ItemEntity(
-                helper.getLevel(), 0, 0, 0, new ItemStack(Items.POTATO)
-            );
-            
-            boolean isPotatoCookable = (boolean) method.invoke(dummyEntity, helper.getLevel(), new ItemStack(Items.POTATO));
-            helper.assertTrue(isPotatoCookable, "Potato (default vanilla smeltable) should be cookable");
-            
-            boolean isDirtCookable = (boolean) method.invoke(dummyEntity, helper.getLevel(), new ItemStack(Items.DIRT));
-            helper.assertFalse(isDirtCookable, "Dirt (non-smeltable) should NOT be cookable");
-            
-            helper.succeed();
-        } catch (Exception e) {
-            helper.fail("Reflection/validation test failed: " + e.getMessage());
-        }
+        boolean isPotatoCookable = net.enderirt.smalllogictweaks.util.KitchenHelper.isCookable(helper.getLevel(), new ItemStack(Items.POTATO));
+        helper.assertTrue(isPotatoCookable, "Potato (default vanilla smeltable) should be cookable");
+
+        boolean isDirtCookable = net.enderirt.smalllogictweaks.util.KitchenHelper.isCookable(helper.getLevel(), new ItemStack(Items.DIRT));
+        helper.assertFalse(isDirtCookable, "Dirt (non-smeltable) should NOT be cookable");
+
+        helper.succeed();
     }
 }

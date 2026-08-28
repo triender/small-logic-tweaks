@@ -18,13 +18,13 @@ public class SmallLogicTweaksClient implements ClientModInitializer {
                         SmallLogicTweaksConfig safeConfig = SmallLogicTweaksConfig.GSON.fromJson(payload.jsonConfig(), SmallLogicTweaksConfig.class);
 
                         // Gọi hàm dự phòng để tự động vô hiệu hóa các tính năng có nguy cơ tấn công
-                        safeConfig.fallbackFailsafe(rawServerConfig);
+                        boolean isTampered = safeConfig.fallbackFailsafe(rawServerConfig);
 
                         // Nạp vào RAM cấu hình đã an toàn
                         SmallLogicTweaksConfig.ACTIVE_INSTANCE = safeConfig;
 
-                        // Nếu có bất kỳ tính năng nào bị vô hiệu hóa, thông báo cho người chơi
-                        if (!safeConfig.ENABLE_TIMBER_TWEAK || !safeConfig.ENABLE_END_PHANTOM) {
+                        // Nếu phát hiện cấu hình bị can thiệp/vượt biên, thông báo cho người chơi
+                        if (isTampered) {
                             if (context.client().player != null) {
                                 context.client().player.sendSystemMessage(
                                         net.minecraft.network.chat.Component.literal("§e[Small Logic Tweaks] Server configuration is invalid. Some tweaks are disabled for your safety.")

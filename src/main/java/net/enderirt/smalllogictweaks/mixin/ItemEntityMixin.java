@@ -2,25 +2,23 @@ package net.enderirt.smalllogictweaks.mixin;
 
 import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
 import net.enderirt.smalllogictweaks.network.KitchenRegistry;
+import net.enderirt.smalllogictweaks.util.KitchenHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.TagKey;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 
 @Mixin(ItemEntity.class)
 public abstract class ItemEntityMixin {
@@ -29,54 +27,9 @@ public abstract class ItemEntityMixin {
 
     private int slt$magmaCookTimer = 0;
 
-    private static final TagKey<Item> MAGMA_COOKABLE = TagKey.create(
-        Registries.ITEM,
-        Identifier.fromNamespaceAndPath("small_logic_tweaks", "magma_cookable")
-    );
-
-    @org.spongepowered.asm.mixin.Unique
-    private static final java.util.Map<Item, Boolean> slt$COOKABLE_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
-
-    @org.spongepowered.asm.mixin.Unique
+    @Unique
     private boolean slt$isCookable(Level level, ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        Item item = stack.getItem();
-        Boolean cached = slt$COOKABLE_CACHE.get(item);
-        if (cached != null) {
-            return cached;
-        }
-        boolean isMarked = stack.is(MAGMA_COOKABLE);
-        String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
-        if (!isMarked) {
-            isMarked = SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes != null
-                && SmallLogicTweaksConfig.ACTIVE_INSTANCE.magmaCookTimes.containsKey(key);
-        }
-        if (!isMarked) {
-            slt$COOKABLE_CACHE.put(item, false);
-            return false;
-        }
-        net.minecraft.resources.Identifier itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item);
-        String namespace = itemId.getNamespace();
-        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.aestheticCookResults != null 
-            && SmallLogicTweaksConfig.ACTIVE_INSTANCE.aestheticCookResults.containsKey(key)) {
-            slt$COOKABLE_CACHE.put(item, true);
-            return true;
-        }
-        if (!namespace.equals("minecraft")) {
-            slt$COOKABLE_CACHE.put(item, false);
-            return false;
-        }
-        boolean hasSmelting = false;
-        var recipeAccess = level.recipeAccess();
-        if (recipeAccess instanceof net.minecraft.world.item.crafting.RecipeManager recipeManager) {
-            try {
-                var input = new net.minecraft.world.item.crafting.SingleRecipeInput(stack);
-                hasSmelting = recipeManager.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.SMELTING, input, level).isPresent();
-            } catch (Throwable t) {
-            }
-        }
-        slt$COOKABLE_CACHE.put(item, hasSmelting);
-        return hasSmelting;
+        return KitchenHelper.isCookable(level, stack);
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
@@ -95,7 +48,7 @@ public abstract class ItemEntityMixin {
         }
 
         ItemStack stack = this.getItem();
-        if (stack.isEmpty() || !slt$isCookable(level, stack)) {
+        if (stack.isEmpty() || !KitchenHelper.isCookable(level, stack)) {
             if (slt$magmaCookTimer > 0) {
                 slt$magmaCookTimer--;
             }
@@ -115,7 +68,7 @@ public abstract class ItemEntityMixin {
             if (state.is(Blocks.WATER_CAULDRON)) {
                 BlockPos underPos = checkPos.below();
                 BlockState underState = level.getBlockState(underPos);
-                float heat = slt$getHeatMultiplier(underState);
+                float heat = KitchenHelper.getHeatMultiplier(underState);
                 if (heat > 0.0f) {
                     cauldronPos = checkPos;
                     cauldronHeatSourcePos = underPos;
@@ -138,17 +91,17 @@ public abstract class ItemEntityMixin {
             BlockState stateAtEntity = level.getBlockState(entityPos);
             BlockState stateBelowEntity = level.getBlockState(entityPos.below());
             BlockState stateTwoBelowEntity = level.getBlockState(entityPos.below(2));
-            
-            if (slt$isCoverBlock(stateAtEntity)) {
-                float heat = slt$getHeatMultiplier(stateBelowEntity);
+
+            if (KitchenHelper.isCoverBlock(stateAtEntity)) {
+                float heat = KitchenHelper.getHeatMultiplier(stateBelowEntity);
                 if (heat > 0.0f) {
                     coverPos = entityPos;
                     heatSourcePos = entityPos.below();
                     heatMultiplier = heat;
                 }
             }
-            if (heatSourcePos == null && slt$isCoverBlock(stateBelowEntity)) {
-                float heat = slt$getHeatMultiplier(stateTwoBelowEntity);
+            if (heatSourcePos == null && KitchenHelper.isCoverBlock(stateBelowEntity)) {
+                float heat = KitchenHelper.getHeatMultiplier(stateTwoBelowEntity);
                 if (heat > 0.0f) {
                     coverPos = entityPos.below();
                     heatSourcePos = entityPos.below(2);
@@ -156,14 +109,14 @@ public abstract class ItemEntityMixin {
                 }
             }
             if (heatSourcePos == null) {
-                float heat = slt$getHeatMultiplier(stateAtEntity);
+                float heat = KitchenHelper.getHeatMultiplier(stateAtEntity);
                 if (heat > 0.0f) {
                     heatSourcePos = entityPos;
                     heatMultiplier = heat;
                 }
             }
             if (heatSourcePos == null) {
-                float heat = slt$getHeatMultiplier(stateBelowEntity);
+                float heat = KitchenHelper.getHeatMultiplier(stateBelowEntity);
                 if (heat > 0.0f) {
                     heatSourcePos = entityPos.below();
                     heatMultiplier = heat;
@@ -196,7 +149,7 @@ public abstract class ItemEntityMixin {
         }
 
         // Try reserving the heat source
-        if (!KitchenRegistry.tryReserve(heatSourcePos, entity.getUUID(), level.getGameTime())) {
+        if (!KitchenRegistry.tryReserve(level.dimension(), heatSourcePos, entity.getUUID(), level.getGameTime())) {
             if (slt$magmaCookTimer > 0) {
                 slt$magmaCookTimer--;
             }
@@ -210,12 +163,12 @@ public abstract class ItemEntityMixin {
         if (level.getRandom().nextInt(40) == 0) {
             if (isCauldron) {
                 level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
-                    SoundEvents.BUBBLE_COLUMN_BUBBLE_POP, SoundSource.BLOCKS,
-                    0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+                        SoundEvents.BUBBLE_COLUMN_BUBBLE_POP, SoundSource.BLOCKS,
+                        0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
             } else {
                 level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
-                    SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS,
-                    0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+                        SoundEvents.CAMPFIRE_CRACKLE, SoundSource.BLOCKS,
+                        0.5f, 1.0f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
             }
         }
 
@@ -223,23 +176,23 @@ public abstract class ItemEntityMixin {
         if (level instanceof ServerLevel serverLevel) {
             if (isCauldron) {
                 serverLevel.sendParticles(
-                    ParticleTypes.BUBBLE,
-                    entity.getX(), entity.getY() + 0.1, entity.getZ(),
-                    1, 0.1, 0.1, 0.1, 0.0
+                        ParticleTypes.BUBBLE,
+                        entity.getX(), entity.getY() + 0.1, entity.getZ(),
+                        1, 0.1, 0.1, 0.1, 0.0
                 );
                 // Also add a little bit of steam
                 if (level.getRandom().nextInt(4) == 0) {
                     serverLevel.sendParticles(
-                        ParticleTypes.SMOKE,
-                        entity.getX(), entity.getY() + 0.35, entity.getZ(),
-                        1, 0.05, 0.05, 0.05, 0.0
+                            ParticleTypes.SMOKE,
+                            entity.getX(), entity.getY() + 0.35, entity.getZ(),
+                            1, 0.05, 0.05, 0.05, 0.0
                     );
                 }
             } else {
                 serverLevel.sendParticles(
-                    ParticleTypes.SMOKE,
-                    entity.getX(), entity.getY() + 0.1, entity.getZ(),
-                    1, 0.1, 0.1, 0.1, 0.0
+                        ParticleTypes.SMOKE,
+                        entity.getX(), entity.getY() + 0.1, entity.getZ(),
+                        1, 0.1, 0.1, 0.1, 0.0
                 );
             }
         }
@@ -248,7 +201,7 @@ public abstract class ItemEntityMixin {
         int cookTime = SmallLogicTweaksConfig.ACTIVE_INSTANCE.getCookTime(stack.getItem());
         int targetTime = (int) (cookTime / heatMultiplier);
         if (slt$magmaCookTimer >= targetTime) {
-            ItemStack cookedResult = SmallLogicTweaksConfig.getCookedResult(level, stack);
+            ItemStack cookedResult = KitchenHelper.getCookedResult(level, stack);
             if (!cookedResult.isEmpty()) {
                 if (isCauldron) {
                     // Boil sequentially
@@ -259,16 +212,16 @@ public abstract class ItemEntityMixin {
 
                     ItemEntity cookedEntity = new ItemEntity(level, entity.getX(), entity.getY() + 0.5, entity.getZ(), singleCooked);
                     cookedEntity.setDeltaMovement(
-                        (level.getRandom().nextFloat() - 0.5) * 0.1,
-                        0.2 + level.getRandom().nextFloat() * 0.1,
-                        (level.getRandom().nextFloat() - 0.5) * 0.1
+                            (level.getRandom().nextFloat() - 0.5) * 0.1,
+                            0.2 + level.getRandom().nextFloat() * 0.1,
+                            (level.getRandom().nextFloat() - 0.5) * 0.1
                     );
                     level.addFreshEntity(cookedEntity);
 
                     // Boil complete: splash sound and bubble burst particles
                     level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
-                        SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS,
-                        0.7f, 1.2f);
+                            SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS,
+                            0.7f, 1.2f);
                     if (level instanceof ServerLevel serverLevel) {
                         serverLevel.sendParticles(ParticleTypes.BUBBLE, entity.getX(), entity.getY() + 0.4, entity.getZ(), 6, 0.15, 0.15, 0.15, 0.05);
                         serverLevel.sendParticles(ParticleTypes.SPLASH, entity.getX(), entity.getY() + 0.4, entity.getZ(), 4, 0.15, 0.15, 0.15, 0.05);
@@ -279,8 +232,8 @@ public abstract class ItemEntityMixin {
 
                     // Roasting complete: sizzle/extinguish sound and smoke burst particles
                     level.playSound(null, entity.getX(), entity.getY(), entity.getZ(),
-                        SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS,
-                        0.4f, 1.5f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
+                            SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS,
+                            0.4f, 1.5f + (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2f);
                     if (level instanceof ServerLevel serverLevel) {
                         serverLevel.sendParticles(ParticleTypes.LARGE_SMOKE, entity.getX(), entity.getY() + 0.2, entity.getZ(), 5, 0.15, 0.1, 0.15, 0.02);
                     }
@@ -288,29 +241,5 @@ public abstract class ItemEntityMixin {
             }
             slt$magmaCookTimer = 0;
         }
-    }
-
-    private float slt$getHeatMultiplier(BlockState state) {
-        if (state.is(Blocks.MAGMA_BLOCK)) {
-            return 1.0f;
-        }
-        if (state.is(Blocks.FIRE) || state.is(Blocks.SOUL_FIRE)) {
-            return 1.2f;
-        }
-        if (state.is(Blocks.LAVA)) {
-            return 1.5f;
-        }
-        return 0.0f;
-    }
-
-    private boolean slt$isCoverBlock(BlockState state) {
-        if (state.is(net.minecraft.tags.BlockTags.TRAPDOORS)
-            || state.is(net.minecraft.tags.BlockTags.PRESSURE_PLATES)
-            || state.is(net.minecraft.tags.BlockTags.WOOL_CARPETS)
-            || state.is(net.minecraft.tags.BlockTags.SLABS)) {
-            return true;
-        }
-        String name = state.getBlock().getClass().getSimpleName().toLowerCase();
-        return name.contains("trapdoor") || name.contains("pressureplate") || name.contains("carpet") || name.contains("slab");
     }
 }
