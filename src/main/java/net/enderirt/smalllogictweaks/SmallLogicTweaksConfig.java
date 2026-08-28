@@ -477,6 +477,8 @@ public class SmallLogicTweaksConfig {
             this.ENABLE_END_PHANTOM = false;
             tampered = true;
             LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered/out-of-bounds. Feature disabled locally.");
+        }
+
         // 4. Kiểm tra chéo: Tính năng BẾP LÒ (AESTHETIC KITCHEN)
         if (this.DEFAULT_COOK_TIME != rawReceived.DEFAULT_COOK_TIME ||
                 this.magmaCookTimes == null ||
