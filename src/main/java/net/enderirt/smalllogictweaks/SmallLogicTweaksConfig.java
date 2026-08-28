@@ -168,46 +168,17 @@ public class SmallLogicTweaksConfig {
     }
 
     public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
-        if (level == null || rawStack == null || rawStack.isEmpty()) {
-            return net.minecraft.world.item.ItemStack.EMPTY;
-        }
-        String rawKey = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(rawStack.getItem()).toString();
-        if (ACTIVE_INSTANCE.aestheticCookResults != null && ACTIVE_INSTANCE.aestheticCookResults.containsKey(rawKey)) {
-            String cookedKey = ACTIVE_INSTANCE.aestheticCookResults.get(rawKey);
-            net.minecraft.resources.Identifier cookedId = net.minecraft.resources.Identifier.tryParse(cookedKey);
-            if (cookedId != null) {
-                var holderOpt = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(cookedId);
-                if (holderOpt.isPresent()) {
-                    net.minecraft.world.item.Item cookedItem = holderOpt.get().value();
-                    if (cookedItem != null && cookedItem != net.minecraft.world.item.Items.AIR) {
-                        return new net.minecraft.world.item.ItemStack(cookedItem, rawStack.getCount());
-                    }
-                }
-            }
-        }
-        var recipeAccess = level.recipeAccess();
-        if (recipeAccess instanceof net.minecraft.world.item.crafting.RecipeManager recipeManager) {
-            try {
-                var input = new net.minecraft.world.item.crafting.SingleRecipeInput(rawStack);
-                var recipeOpt = recipeManager.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.SMELTING, input, level);
-                if (recipeOpt.isPresent()) {
-                    return recipeOpt.get().value().assemble(input);
-                }
-            } catch (Throwable t) {
-                // Fallback for older versions if API differs
-            }
-        }
-        return net.minecraft.world.item.ItemStack.EMPTY;
+        return net.enderirt.smalllogictweaks.util.KitchenHelper.getCookedResult(level, rawStack);
     }
 
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
     // Cấu hình vật lý: Chỉ dùng để lưu/đọc file trên ổ cứng cục bộ
-    public static SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
+    public static volatile SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
 
     // Cấu hình RAM: Thực thể trực tiếp quyết định luật chơi trong thời gian thực
-    public static SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
+    public static volatile SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
 
     // Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -308,10 +279,13 @@ public class SmallLogicTweaksConfig {
 
     public static void save() {
         // DỰ PHÒNG MẤT THƯ MỤC: Nếu thư mục chứa file cấu hình bị xóa mất (hoặc chưa sinh ra), tự động tạo lại các tầng thư mục
-        try {
-            Files.createDirectories(getConfigFile().getParentFile().toPath());
-        } catch (IOException e) {
-            // Xử lý hoặc ghi log lỗi không thể tạo thư mục
+        File parentDir = getConfigFile().getParentFile();
+        if (parentDir != null) {
+            try {
+                Files.createDirectories(parentDir.toPath());
+            } catch (IOException e) {
+                LOGGER.error("Failed to create config directory: {}", parentDir.getAbsolutePath(), e);
+            }
         }
 
         // Định nghĩa đường dẫn cho tệp tin tạm thời có đuôi `.tmp`
@@ -319,8 +293,8 @@ public class SmallLogicTweaksConfig {
 
         try {
             // BƯỚC 1 CỦA GHI NGUYÊN TỬ (Atomic Save): Ghi toàn bộ dữ liệu cấu hình hiện tại vào tệp tạm thời `.tmp` trước.
-            // DỰ PHÒNG MẤT ĐIỆN/ĐẦY Ổ CỨNG GIỮA CHỪNG: Nếu quá trình ghi tệp bị đứt quãng tại đây, tệp gốc (.json) của người chơi vẫn an toàn tuyệt đối.
-            try (FileWriter writer = new FileWriter(tempFile)) {
+            // DỰ PHÒNG MẤT ĐIỆN/ĐẦY Ổ CỨNG GIỮA CHỪNG: Sử dụng UTF-8 chuẩn để tránh lỗi font chữ trên mọi hệ điều hành (kể cả Windows).
+            try (java.io.BufferedWriter writer = Files.newBufferedWriter(tempFile.toPath(), StandardCharsets.UTF_8)) {
                 GSON.toJson(LOCAL_INSTANCE, writer);
             }
 
@@ -336,11 +310,10 @@ public class SmallLogicTweaksConfig {
             LOGGER.error("Failed to save config file securely: {}", e.getMessage());
 
             // Hậu kiểm an toàn: Nếu tệp tạm thời vẫn đang lơ lửng trên ổ đĩa do lỗi ghi giữa chừng, thực hiện xóa bỏ để tránh rác thư mục
-            // HẬU KIỂM AN TOÀN
             try {
                 Files.deleteIfExists(tempFile.toPath());
             } catch (IOException err) {
-                // Xử lý hoặc ghi log lỗi không thể xóa file tạm
+                LOGGER.debug("Failed to delete temporary config file: {}", tempFile.getAbsolutePath(), err);
             }
         }
     }
@@ -380,10 +353,10 @@ public class SmallLogicTweaksConfig {
         this._comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
         this._comment_aestheticCookResults = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.";
 
-        // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 15 khối.
+        // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 8 khối.
         // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
         if (this.MAX_LOG_HORIZONTAL_RADIUS < 1 || this.MAX_LOG_HORIZONTAL_RADIUS > 8) {
-            LOGGER.error("Invalid value for 'MAX_LOG_HORIZONTAL_RADIUS' ({}). Must be between 1 and 15. Resetting to default: 5", this.MAX_LOG_HORIZONTAL_RADIUS);
+            LOGGER.error("Invalid value for 'MAX_LOG_HORIZONTAL_RADIUS' ({}). Must be between 1 and 8. Resetting to default: 5", this.MAX_LOG_HORIZONTAL_RADIUS);
             this.MAX_LOG_HORIZONTAL_RADIUS = 5; // Ép chỉ số lỗi quay về giá trị an toàn mặc định
         }
 
@@ -454,7 +427,10 @@ public class SmallLogicTweaksConfig {
         }
     }
 
-    public void fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
+    public boolean fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
+        if (rawReceived == null) return false;
+        boolean tampered = false;
+
         // 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
         this.validate();
 
@@ -466,18 +442,25 @@ public class SmallLogicTweaksConfig {
 
             // Cấu hình Timber bị hỏng/độc hại -> Tắt hoàn toàn ở Client
             this.ENABLE_TIMBER_TWEAK = false;
+            tampered = true;
             LOGGER.warn("[Failsafe] Timber tweak configurations were tampered/out-of-bounds. Feature disabled locally to prevent OOM/Lag.");
         }
 
         // 3. Kiểm tra chéo: Tính năng PHANTOM
         if (this.PHANTOM_MOB_CAP != rawReceived.PHANTOM_MOB_CAP ||
-                this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT /* ... các biến Phantom khác ... */) {
+                this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT ||
+                this.PHANTOM_MAX_COUNT != rawReceived.PHANTOM_MAX_COUNT ||
+                this.PHANTOM_CHECK_COOLDOWN != rawReceived.PHANTOM_CHECK_COOLDOWN ||
+                this.PHANTOM_THRESHOLD_PRE_ELYTRA != rawReceived.PHANTOM_THRESHOLD_PRE_ELYTRA ||
+                this.PHANTOM_THRESHOLD_POST_ELYTRA != rawReceived.PHANTOM_THRESHOLD_POST_ELYTRA ||
+                this.PHANTOM_MIN_SPAWN_HEIGHT != rawReceived.PHANTOM_MIN_SPAWN_HEIGHT ||
+                this.PHANTOM_MAX_SPAWN_HEIGHT != rawReceived.PHANTOM_MAX_SPAWN_HEIGHT) {
 
             this.ENABLE_END_PHANTOM = false;
-            LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered. Feature disabled locally.");
+            tampered = true;
+            LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered/out-of-bounds. Feature disabled locally.");
         }
 
-        // Lưu ý: Các tính năng Boolean thuần túy (như Bone Meal) không cần failsafe
-        // vì bản thân giá trị true/false không thể bị overflow (tràn bộ nhớ).
+        return tampered;
     }
 }

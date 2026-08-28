@@ -226,8 +226,7 @@ public class SmallLogicTweaksEvents {
         switch (levelEnchant) {
             case 1 -> maxLogs = 16;
             case 2 -> maxLogs = 64;
-            case 3 -> maxLogs = 140;
-            default -> maxLogs = 0;
+            default -> maxLogs = 140;
         }
 
         Set<BlockPos> visitedLogs = new HashSet<>();
@@ -564,19 +563,21 @@ public class SmallLogicTweaksEvents {
                 int localCap = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MOB_CAP;
                 if (nearbyPhantoms.size() >= localCap) return;
 
-                int minCount = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_COUNT;
-                int maxCount = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_COUNT;
+                int minCount = Math.max(1, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_COUNT);
+                int maxCount = Math.max(minCount, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_COUNT);
+                int countRange = Math.max(1, (maxCount - minCount) + 1);
 
                 // Tính số lượng cần spawn
-                int desiredSpawnCount = minCount + random.nextInt((maxCount - minCount) + 1);
+                int desiredSpawnCount = minCount + random.nextInt(countRange);
                 int phantomCount = Math.min(desiredSpawnCount, localCap - nearbyPhantoms.size());
 
                 net.minecraft.core.BlockPos playerPos = player.blockPosition();
-                int minHeight = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT;
-                int maxHeight = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT;
+                int minHeight = Math.max(0, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT);
+                int maxHeight = Math.max(minHeight, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT);
+                int heightRange = Math.max(1, (maxHeight - minHeight) + 1);
 
                 for (int i = 0; i < phantomCount; i++) {
-                    int randomHeight = minHeight + random.nextInt((maxHeight - minHeight) + 1);
+                    int randomHeight = minHeight + random.nextInt(heightRange);
                     net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
 
                     // Kiểm tra va chạm để spawn an toàn
