@@ -954,4 +954,312 @@ public class Gametest {
 
         helper.succeed();
     }
+
+    // ================================================================
+    // PICKAXE DIRT REVERSION TESTS
+    // ================================================================
+
+    /**
+     * Bài Test: Kiểm thử hoàn nguyên với tất cả các tier cúp Vanilla trên cả DIRT_PATH và FARMLAND.
+     * Mỗi cúp phải kích hoạt thành công thao tác chuyển đổi khối.
+     */
+    @GameTest(maxTicks = 20)
+    public void testPickaxeReversionAllTiers(GameTestHelper helper) {
+        // Danh sách tất cả các loại cúp Vanilla
+        Item[] pickaxes = {
+            Items.WOODEN_PICKAXE,
+            Items.STONE_PICKAXE,
+            Items.IRON_PICKAXE,
+            Items.GOLDEN_PICKAXE,
+            Items.DIAMOND_PICKAXE,
+            Items.NETHERITE_PICKAXE
+        };
+
+        int column = 1;
+        for (Item pickaxeItem : pickaxes) {
+            // Đặt 1 khối DIRT_PATH và 1 khối FARMLAND cho mỗi cúp
+            BlockPos pathPos = new BlockPos(column, 2, 1);
+            BlockPos farmPos = new BlockPos(column, 2, 3);
+
+            helper.setBlock(pathPos, Blocks.DIRT_PATH);
+            // Farmland cần đất bên dưới và nguồn nước để không sập ngay
+            helper.setBlock(farmPos.below(), Blocks.DIRT);
+            helper.setBlock(farmPos, Blocks.FARMLAND);
+
+            Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+            mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(pickaxeItem, 1));
+
+            // Tương tác chuột phải vào DIRT_PATH
+            BlockPos absPath = helper.absolutePos(pathPos);
+            BlockHitResult pathHit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+            InteractionResult pathResult = UseBlockCallback.EVENT.invoker().interact(
+                    mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, pathHit
+            );
+
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+                helper.assertTrue(pathResult == InteractionResult.SUCCESS,
+                        "Cúp " + pickaxeItem + " phải trả về SUCCESS khi xới DIRT_PATH");
+                helper.assertBlockPresent(Blocks.DIRT, pathPos);
+            }
+
+            // Tương tác chuột phải vào FARMLAND
+            BlockPos absFarm = helper.absolutePos(farmPos);
+            BlockHitResult farmHit = new BlockHitResult(Vec3.atCenterOf(absFarm), Direction.UP, absFarm, false);
+
+            // Đặt lại Farmland (có thể bị sập từ trước)
+            helper.setBlock(farmPos, Blocks.FARMLAND);
+            mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(pickaxeItem, 1));
+            InteractionResult farmResult = UseBlockCallback.EVENT.invoker().interact(
+                    mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, farmHit
+            );
+
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+                helper.assertTrue(farmResult == InteractionResult.SUCCESS,
+                        "Cúp " + pickaxeItem + " phải trả về SUCCESS khi xới FARMLAND");
+                helper.assertBlockPresent(Blocks.DIRT, farmPos);
+            }
+
+            column += 2;
+        }
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test: Cúp có các cường hóa Unbreaking III, Fortune III, Silk Touch, Efficiency V
+     * vẫn phải kích hoạt đúng logic chuyển đổi khối.
+     */
+    @GameTest(maxTicks = 20)
+    public void testPickaxeReversionWithEnchantments(GameTestHelper helper) {
+        var registry = helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+
+        // Danh sách cường hóa cần kiểm thử
+        net.minecraft.resources.ResourceKey<net.minecraft.world.item.enchantment.Enchantment>[] enchantKeys = new net.minecraft.resources.ResourceKey[]{
+            net.minecraft.world.item.enchantment.Enchantments.UNBREAKING,
+            net.minecraft.world.item.enchantment.Enchantments.FORTUNE,
+            net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH,
+            net.minecraft.world.item.enchantment.Enchantments.EFFICIENCY
+        };
+        int[] enchantLevels = { 3, 3, 1, 5 };
+
+        int column = 1;
+        for (int i = 0; i < enchantKeys.length; i++) {
+            BlockPos pathPos = new BlockPos(column, 2, 1);
+            helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+            ItemStack enchantedPickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+            var enchantHolder = registry.getOrThrow(enchantKeys[i]);
+            enchantedPickaxe.enchant(enchantHolder, enchantLevels[i]);
+
+            Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+            mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, enchantedPickaxe);
+
+            BlockPos absPath = helper.absolutePos(pathPos);
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+            InteractionResult result = UseBlockCallback.EVENT.invoker().interact(
+                    mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hit
+            );
+
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+                helper.assertTrue(result == InteractionResult.SUCCESS,
+                        "Cúp có cường hóa " + enchantKeys[i] + " phải hoàn nguyên DIRT_PATH thành công");
+                helper.assertBlockPresent(Blocks.DIRT, pathPos);
+            }
+
+            column += 2;
+        }
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test: Xác nhận cúp bị trừ đúng 1 điểm độ bền sau khi xới khối trong chế độ Survival.
+     */
+    @GameTest(maxTicks = 10)
+    public void testPickaxeReversionDurabilityCost(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos pathPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+        // Tạo cúp kim cương mới toanh (damage = 0)
+        ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+        int damageBeforeUse = pickaxe.getDamageValue(); // Phải là 0
+
+        Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, pickaxe);
+
+        BlockPos absPath = helper.absolutePos(pathPos);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+        UseBlockCallback.EVENT.invoker().interact(mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hit);
+
+        ItemStack afterStack = mockPlayer.getMainHandItem();
+
+        // Khối phải đã biến thành DIRT
+        helper.assertBlockPresent(Blocks.DIRT, pathPos);
+
+        // Độ bền phải đã giảm ít nhất 1 (damage tăng ít nhất 1)
+        helper.assertTrue(afterStack.getDamageValue() > damageBeforeUse,
+                "Cúp phải bị trừ ít nhất 1 điểm độ bền sau khi xới khối. Trước: "
+                        + damageBeforeUse + ", Sau: " + afterStack.getDamageValue());
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test: Khi cúp chỉ còn đúng 1 điểm độ bền cuối cùng,
+     * sau khi xới khối, khối phải thành DIRT và cúp phải gãy (isEmpty = true).
+     */
+    @GameTest(maxTicks = 10)
+    public void testPickaxeReversionBreaksAtZeroDurability(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos pathPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+        // Tạo cúp gỗ còn đúng 1 điểm độ bền (damage = maxDamage - 1)
+        ItemStack pickaxe = new ItemStack(Items.WOODEN_PICKAXE);
+        int maxDamage = pickaxe.getMaxDamage(); // Gỗ: 59
+        pickaxe.setDamageValue(maxDamage - 1);   // Còn 1 HP
+
+        Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, pickaxe);
+
+        BlockPos absPath = helper.absolutePos(pathPos);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+        UseBlockCallback.EVENT.invoker().interact(mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hit);
+
+        // Khối phải đã thành DIRT
+        helper.assertBlockPresent(Blocks.DIRT, pathPos);
+
+        // Cúp phải đã gãy và biến mất khỏi tay
+        ItemStack afterStack = mockPlayer.getMainHandItem();
+        helper.assertTrue(afterStack.isEmpty(),
+                "Cúp gỗ chỉ còn 1 HP phải bị gãy và trở thành ItemStack.EMPTY sau khi sử dụng");
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test: Khi người chơi đứng trực tiếp trên khối DIRT_PATH (độ cao Y = 0.9375),
+     * sau khi xới cúp thành DIRT (Full Block Y = 1.0), hệ thống phải tự động bù đắp
+     * tọa độ Y của người chơi lên đúng 1.0 để tránh bị lọt chân hoặc văng ra rìa.
+     */
+    @GameTest(maxTicks = 10)
+    public void testPickaxeReversionStepUpCompensation(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos pathPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+        BlockPos absPath = helper.absolutePos(pathPos);
+
+        Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
+
+        // Đặt người chơi đứng trực tiếp trên bề mặt Dirt Path (độ cao y = absPath.getY() + 0.9375)
+        mockPlayer.setPos(absPath.getX() + 0.5, absPath.getY() + 0.9375, absPath.getZ() + 0.5);
+
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+        UseBlockCallback.EVENT.invoker().interact(mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hit);
+
+        // Khối phải đã biến thành DIRT
+        helper.assertBlockPresent(Blocks.DIRT, pathPos);
+
+        // Tọa độ Y của người chơi phải được nâng lên ít nhất absPath.getY() + 1.0
+        double expectedY = absPath.getY() + 1.0;
+        helper.assertTrue(mockPlayer.getY() >= expectedY - 0.001,
+                "Tọa độ Y của người chơi phải được bù đắp lên đỉnh full block (ít nhất " + expectedY + "), thực tế là: " + mockPlayer.getY());
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test Edge Case 1: Cầm cúp ở tay phụ (Offhand), tay chính cầm vật phẩm khác.
+     * Khối phải chuyển thành DIRT và cúp tay phụ phải bị trừ độ bền chuẩn xác.
+     */
+    @GameTest(maxTicks = 10)
+    public void testPickaxeReversionOffhand(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos pathPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+        ItemStack pickaxe = new ItemStack(Items.IRON_PICKAXE);
+        int damageBefore = pickaxe.getDamageValue();
+
+        Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        // Tay chính cầm đuốc, tay phụ cầm cúp sắt
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.TORCH));
+        mockPlayer.setItemInHand(InteractionHand.OFF_HAND, pickaxe);
+
+        BlockPos absPath = helper.absolutePos(pathPos);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+
+        // Kích hoạt tương tác chuột phải bằng tay phụ
+        InteractionResult result = UseBlockCallback.EVENT.invoker().interact(
+                mockPlayer, helper.getLevel(), InteractionHand.OFF_HAND, hit
+        );
+
+        helper.assertTrue(result == InteractionResult.SUCCESS,
+                "Cúp ở tay phụ phải kích hoạt thành công và trả về SUCCESS");
+        helper.assertBlockPresent(Blocks.DIRT, pathPos);
+
+        ItemStack afterPickaxe = mockPlayer.getItemInHand(InteractionHand.OFF_HAND);
+        helper.assertTrue(afterPickaxe.getDamageValue() > damageBefore,
+                "Cúp ở tay phụ phải bị trừ độ bền sau khi xới đất");
+
+        helper.succeed();
+    }
+
+    /**
+     * Bài Test Edge Case 2: Người chơi đứng ở rìa mép biên khối khi đang Shift (Sneaking).
+     * Tâm tọa độ người chơi bị lệch ra ngoài ô vuông [X, X+1.0], nhưng Hitbox AABB vẫn giao nhau với mặt khối.
+     * Phép giao tập hợp AABB phải phát hiện và bù đắp tọa độ Y lên 1.0 để triệt tiêu rung giật.
+     */
+    @GameTest(maxTicks = 10)
+    public void testPickaxeReversionEdgeBoundaryAndShift(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos pathPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pathPos, Blocks.DIRT_PATH);
+
+        BlockPos absPath = helper.absolutePos(pathPos);
+
+        Player mockPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+        mockPlayer.setShiftKeyDown(true); // Đang giữ Shift (Sneaking)
+        mockPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_PICKAXE));
+
+        // Đặt người chơi đứng mấp mé mép ngoài: tâm X lệch ra ngoài 0.18 block (absPath.getX() - 0.18)
+        // Hitbox của người chơi rộng 0.6 (bán kính 0.3), do đó mép hitbox vẫn đè lên khối 0.12 block
+        mockPlayer.setPos(absPath.getX() - 0.18, absPath.getY() + 0.9375, absPath.getZ() + 0.5);
+
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPath), Direction.UP, absPath, false);
+        UseBlockCallback.EVENT.invoker().interact(mockPlayer, helper.getLevel(), InteractionHand.MAIN_HAND, hit);
+
+        // Khối phải đã biến thành DIRT
+        helper.assertBlockPresent(Blocks.DIRT, pathPos);
+
+        // Tọa độ Y phải được nâng lên đỉnh full block 1.0 nhờ phép giao tập hợp AABB
+        double expectedY = absPath.getY() + 1.0;
+        helper.assertTrue(mockPlayer.getY() >= expectedY - 0.001,
+                "Người chơi dù đứng ở mép biên khi Shift vẫn phải được bù đắp Y lên 1.0 thông qua AABB intersection. Thực tế Y: " + mockPlayer.getY());
+
+        helper.succeed();
+    }
 }

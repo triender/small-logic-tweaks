@@ -98,6 +98,12 @@ public class SmallLogicTweaksConfig {
     public boolean ENABLE_SPLASH_HARDENING = true;
 
     // ==========================================
+    // --- PICKAXE DIRT REVERSION CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_PICKAXE_DIRT_REVERSION = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.";
+    public boolean ENABLE_PICKAXE_DIRT_REVERSION = true;
+
+    // ==========================================
     // --- PHANTOM TWEAK CONFIGURATION ---
     // ==========================================
     public String _comment_ENABLE_END_PHANTOM = "Enable spawn phantom in the end instead of Overworld";
@@ -338,6 +344,7 @@ public class SmallLogicTweaksConfig {
         this._comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
         this._comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
         this._comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
+        this._comment_ENABLE_PICKAXE_DIRT_REVERSION = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.";
         this._comment_ENABLE_END_PHANTOM = "Enable or disable custom Phantom spawning logic in The End dimension.";
         this._comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
         this._comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]";
