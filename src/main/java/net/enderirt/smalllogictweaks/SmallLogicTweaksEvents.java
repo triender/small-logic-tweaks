@@ -35,6 +35,12 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.InteractionHand;
+
 import java.util.*;
 
 
@@ -51,11 +57,18 @@ public class SmallLogicTweaksEvents {
         POWDER_TO_CONCRETE = Map.copyOf(map);
     }
 
+    // Block tag: các khối có thể hoàn nguyên thành Đất khi dùng cúp chuột phải
+    public static final TagKey<net.minecraft.world.level.block.Block> PICKAXE_REVERSION_BLOCKS = TagKey.create(
+            Registries.BLOCK,
+            Identifier.fromNamespaceAndPath(SmallLogicTweaks.MOD_ID, "pickaxe_reversion")
+    );
+
     public static void register() {
         registerBoneMealTweak();
         registerTimberTweak();
         registerPotatoTweaks();
         registerHydroHardeningTweak();
+        registerPickaxeDirtReversionTweak();
         registerEndPhantomTweak();
         LOGGER.info(" Small logic Tweaks Mod register success!!");
     }
@@ -485,6 +498,80 @@ public class SmallLogicTweaksEvents {
                 }
             }
             return InteractionResult.PASS;
+        });
+    }
+
+    private static void registerPickaxeDirtReversionTweak() {
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) return InteractionResult.PASS;
+            if (player.isSpectator()) return InteractionResult.PASS;
+
+            ItemStack stack = player.getItemInHand(hand);
+
+            // 1. Kiểm tra công cụ phải là cúp (Pickaxe)
+            if (!stack.is(ItemTags.PICKAXES)) return InteractionResult.PASS;
+
+            BlockPos pos = hitResult.getBlockPos();
+            BlockState state = world.getBlockState(pos);
+
+            // 2. Kiểm tra khối phải thuộc tag #small_logic_tweaks:pickaxe_reversion
+            if (!state.is(PICKAXE_REVERSION_BLOCKS)) return InteractionResult.PASS;
+
+            // 3. Client-side prediction: Giao tập hợp giữa Hitbox người chơi và mặt trên của khối
+            double targetY = pos.getY() + 1.0;
+            net.minecraft.world.phys.AABB blockTopArea = new net.minecraft.world.phys.AABB(
+                    pos.getX(), pos.getY() + 0.85, pos.getZ(),
+                    pos.getX() + 1.0, pos.getY() + 1.05, pos.getZ() + 1.0
+            );
+
+            if (player.getBoundingBox().intersects(blockTopArea) && player.getY() < targetY) {
+                player.setPos(player.getX(), targetY, player.getZ());
+                // Triệt tiêu quán tính rơi xuống nếu có
+                var movement = player.getDeltaMovement();
+                if (movement.y < 0) {
+                    player.setDeltaMovement(movement.x, 0.0, movement.z);
+                }
+            }
+
+            if (world.isClientSide()) return InteractionResult.SUCCESS;
+
+            // --- LOGIC PHÍA SERVER ---
+            // 4. Chuyển đổi khối thành Đất nguyên thủy
+            world.setBlockAndUpdate(pos, Blocks.DIRT.defaultBlockState());
+
+            // 4.1. Bù đắp tọa độ Y phía server cho các thực thể lân cận (Mobs, động vật, người chơi khác)
+            if (world instanceof ServerLevel serverLevel) {
+                for (net.minecraft.world.entity.Entity entity : serverLevel.getEntitiesOfClass(net.minecraft.world.entity.Entity.class, blockTopArea)) {
+                    if (entity.getY() < targetY) {
+                        entity.setPos(entity.getX(), targetY, entity.getZ());
+                        var entMovement = entity.getDeltaMovement();
+                        if (entMovement.y < 0) {
+                            entity.setDeltaMovement(entMovement.x, 0.0, entMovement.z);
+                        }
+                    }
+                }
+            }
+
+            // 5. Phát âm thanh cuốc xới đất
+            world.playSound(null, pos, SoundEvents.SHOVEL_FLATTEN, SoundSource.BLOCKS, 1.0f, 0.9f + world.getRandom().nextFloat() * 0.2f);
+
+            // 6. Bắn hiệu ứng hạt bụi / khói nhẹ
+            if (world instanceof ServerLevel serverLevel) {
+                serverLevel.sendParticles(
+                        ParticleTypes.SMOKE,
+                        pos.getX() + 0.5, pos.getY() + 0.95, pos.getZ() + 0.5,
+                        6, 0.2, 0.05, 0.2, 0.02
+                );
+            }
+
+            // 7. Trừ độ bền cúp (hỗ trợ Unbreaking, kích hoạt gãy nếu hết HP)
+            if (!player.getAbilities().instabuild) {
+                ServerPlayer sp = player instanceof ServerPlayer serverPlayer ? serverPlayer : null;
+                EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
+                stack.hurtAndBreak(1, (ServerLevel) world, sp, item -> player.onEquippedItemBroken(item, slot));
+            }
+
+            return InteractionResult.SUCCESS;
         });
     }
 

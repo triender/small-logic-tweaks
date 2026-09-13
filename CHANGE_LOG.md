@@ -1,5 +1,9 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+### ✨ Added
+* **Dirt Cycle (Pickaxe Reversion):** Right-click Farmland or Dirt Path with any Pickaxe to restore it back into normal Dirt. Consumes 1 tool durability (supports Unbreaking and proper tool-breaking mechanics) with custom digging sound and dust particles.
+* **Data-driven Reversion Tag:** Introduced `#small_logic_tweaks:pickaxe_reversion` block tag allowing players and modpack creators to customize which cultivated/compressed ground blocks can be reverted by pickaxes.
+
 ---
 # 🍳 Aesthetic Kitchen Update (Version 1.5.0)
 
