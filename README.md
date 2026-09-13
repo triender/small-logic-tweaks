@@ -26,6 +26,15 @@ Use Bone Meal directly on **Dirt** to bootstrap natural surface recovery.
 
 Design intent: remove the awkward dependency on transporting Silk Touch grass blocks just to begin restoration.
 
+### Dirt Cycle: Pickaxe Reversion
+
+Right-click **Farmland** or **Dirt Path** with any **Pickaxe** to restore it back into standard **Dirt**.
+
+- **Closed Soil Loop**: Complements the Bone Meal tweak by completing the lifecycle of soil (`Dirt` ↔ `Path` / `Farmland` ↔ `Grass`).
+- **Intuitive Mechanical Parity**: Fills the right-click interaction gap for pickaxes, giving players a non-destructive way to forgive misclicks or decommission farm plots without breaking and re-placing blocks.
+- **Vanilla-Standard Wear**: Costs 1 durability per use, respects the Unbreaking enchantment, and breaks the tool naturally when depleted.
+- **Data-Driven Tag**: Fully customizable via the `#small_logic_tweaks:pickaxe_reversion` block tag.
+
 ### Timber
 
 Tree-felling logic optimized for forestry workflows.
@@ -54,11 +63,35 @@ Introduces a practical identity for Charcoal.
 - craft **Black Dye** directly from **Charcoal**
 - keeps recipe scope simple and Vanilla-adjacent
 
+### Hydro-Hardening
+
+Instant concrete hydration through direct manual interaction.
+
+- right-click **Concrete Powder** with a **Water Bottle** to instantly harden it into **Concrete** (returns an empty Glass Bottle)
+- splash water bottles harden Concrete Powder in a localized 3x3x3 splash area with natural drop-off and line-of-sight awareness
+
+### Aesthetic Kitchen
+
+Physics-based, container-free cooking on functional heat sources.
+
+- roast raw foods directly on heat sources (Magma Blocks, Fire, Lava), even when covered by Trapdoors, Pressure Plates, Slabs, or Carpets
+- boil food stacks inside heated Water Cauldrons with sequential popping
+- dynamic thermal simulation: insulation via wool carpets, linear heat decay when pushed away, and strict stove reservations to prevent mass-cooking exploits
+
+### Void Insomnia
+
+Dimension-aware Phantom ecology.
+
+- Phantoms no longer disturb Overworld builders; they exclusively spawn in **The End** dimension
+- dynamic insomnia scaling based on whether the player has acquired an Elytra
+
 ## Design Philosophy
 
 Core principle:
 
 > Improve interaction flow without removing gameplay effort.
+
+Interested in the architectural psychology and player behavior behind these changes? Read our full design treatise in [DESIGN.md](DESIGN.md).
 
 Implementation constraints:
 - manual systems over automation
@@ -80,15 +113,6 @@ Tool identity is intentional:
 ## Roadmap (Planned / Investigating)
 
 The following concepts are being explored and may release in any order.
-
-### Hydro-Hardening
-- right-clicking Concrete Powder with a Water Bottle hardens it directly into Concrete
-- bottle-consumption behavior is planned to be explicit and balanced against manual building speed
-
-### Magma Kitchen
-- dropped raw food entities can enter a slow-cook state when resting on Magma Blocks
-- overexposure to heat beyond a burn threshold converts the food into a distinct burnt outcome (or removes the cooked output), depending on final balance tuning
-- exact cook and burn timings are intended to be configurable/tunable during balancing
 
 ### Sawmill
 - improves plank and byproduct yield relative to baseline crafting recipes
