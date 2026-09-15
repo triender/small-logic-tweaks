@@ -2,153 +2,177 @@ package net.enderirt.smalllogictweaks;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
+import net.enderirt.smalllogictweaks.core.config.BaseModConfig;
+import net.enderirt.smalllogictweaks.core.config.ConfigEntry;
+import net.enderirt.smalllogictweaks.core.error.SltError;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.Locale;
 import java.util.Map;
 
-public class SmallLogicTweaksConfig {
+public class SmallLogicTweaksConfig extends BaseModConfig {
     // Khởi tạo Logger riêng cho phân hệ cấu hình để dễ dàng lọc log khi debug
     private static final Logger LOGGER = LoggerFactory.getLogger("SmallLogicTweaks/Config");
-
-    // Đặt giới hạn dung lượng cứng là 1MB (1024 * 1024 bytes).
-    // DỰ PHÒNG: Ngăn chặn tình trạng tệp JSON bị nhồi nhét văn bản rác vô hạn (vài trăm MB hoặc hàng GB),
-    // khiến hàm đọc tệp ép RAM nạp dữ liệu quá mức dẫn đến sập toàn bộ máy ảo Java (OutOfMemoryError).
-    private static final long MAX_FILE_SIZE_BYTES = 1024 * 1024;
 
     // ==========================================
     // --- SYSTEM & DEBUG CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_DEBUG_LOGS = "Enable or disable general debug logs for the mod.";
+    public String _comment_ENABLE_DEBUG_LOGS;
+    @ConfigEntry(comment = "Enable or disable general debug logs for the mod.")
     public boolean ENABLE_DEBUG_LOGS = false;
 
-    public String _comment_ENABLE_TIMBER_DEBUG_LOGS = "Enable or disable technical logs for the tree chopper feature.";
+    public String _comment_ENABLE_TIMBER_DEBUG_LOGS;
+    @ConfigEntry(comment = "Enable or disable technical logs for the tree chopper feature.")
     public boolean ENABLE_TIMBER_DEBUG_LOGS = false;
 
     // ==========================================
     // --- DATA-DRIVEN TWEAKS CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_CHARCOAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Charcoal.";
+    public String _comment_ENABLE_CHARCOAL_TO_BLACK_DYE;
+    @ConfigEntry(comment = "Allow crafting Black Dye directly from Charcoal.")
     public boolean ENABLE_CHARCOAL_TO_BLACK_DYE = true;
 
-    public String _comment_ENABLE_COAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Coal.";
+    public String _comment_ENABLE_COAL_TO_BLACK_DYE;
+    @ConfigEntry(comment = "Allow crafting Black Dye directly from Coal.")
     public boolean ENABLE_COAL_TO_BLACK_DYE = false;
 
-    public String _comment_ENABLE_JUNGLE_SUSTAINABILITY = "Increase the drop rate of Jungle Saplings from Jungle Leaves.";
+    public String _comment_ENABLE_JUNGLE_SUSTAINABILITY;
+    @ConfigEntry(comment = "Increase the drop rate of Jungle Saplings from Jungle Leaves.")
     public boolean ENABLE_JUNGLE_SUSTAINABILITY = true;
 
     // ==========================================
     // --- BONE MEAL TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_BONE_MEAL_TWEAK = "Enable using Bone Meal on dirt to turn it into grass or mycelium.";
+    public String _comment_ENABLE_BONE_MEAL_TWEAK;
+    @ConfigEntry(comment = "Enable using Bone Meal on dirt to turn it into grass or mycelium.")
     public boolean ENABLE_BONE_MEAL_TWEAK = true;
 
-    public String _comment_REQUIRE_NEIGHBOR_SOURCE = "If true, requires at least one matching grass/mycelium block in a 3x3x3 area.";
+    public String _comment_REQUIRE_NEIGHBOR_SOURCE;
+    @ConfigEntry(comment = "If true, requires at least one matching grass/mycelium block in a 3x3x3 area.")
     public boolean REQUIRE_NEIGHBOR_SOURCE = false;
 
-    public String _comment_ALLOW_ALL_DIRT_TYPES = "If true, allows Bone Meal to work on coarse dirt, rooted dirt. If false, only normal dirt.";
+    public String _comment_ALLOW_ALL_DIRT_TYPES;
+    @ConfigEntry(comment = "If true, allows Bone Meal to work on coarse dirt, rooted dirt. If false, only normal dirt.")
     public boolean ALLOW_ALL_DIRT_TYPES = false;
 
     // ==========================================
     // --- TIMBER TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_TIMBER_TWEAK = "Master switch for Timber feature.";
+    public String _comment_ENABLE_TIMBER_TWEAK;
+    @ConfigEntry(comment = "Master switch for Timber feature.")
     public boolean ENABLE_TIMBER_TWEAK = true;
 
-    public String _comment_ENABLE_AUTO_LEAVES_DECAY = "Make leaves decay instantly when a tree is cut down using Timber.";
+    public String _comment_ENABLE_AUTO_LEAVES_DECAY;
+    @ConfigEntry(comment = "Make leaves decay instantly when a tree is cut down using Timber.")
     public boolean ENABLE_AUTO_LEAVES_DECAY = true;
 
-    public String _comment_MAX_LOG_HORIZONTAL_RADIUS = "Maximum horizontal distance (X/Z axis) to search for connected logs. NOT RECOMMENT TO CHANGE [Default: 5]";
+    public String _comment_MAX_LOG_HORIZONTAL_RADIUS;
+    @ConfigEntry(comment = "Maximum horizontal distance (X/Z axis) to search for connected logs. NOT RECOMMENT TO CHANGE [Default: 5]", minInt = 1, maxInt = 8, defaultInt = 5)
     public int MAX_LOG_HORIZONTAL_RADIUS = 5;
 
-    public String _comment_MAX_LEAF_DISTANCE = "Maximum distance from the log to search for connected leaves (Vanilla default). NOT RECOMMENT TO CHANGE [Default: 7]";
+    public String _comment_MAX_LEAF_DISTANCE;
+    @ConfigEntry(comment = "Maximum distance from the log to search for connected leaves (Vanilla default). NOT RECOMMENT TO CHANGE [Default: 7]", minInt = 1, maxInt = 15, defaultInt = 7)
     public int MAX_LEAF_DISTANCE = 7;
 
-    public String _comment_MIN_LEAVES_FOR_TREE = "Minimum number of connected leaves required to validate a valid tree. Acts as a safety check for player houses. [Default: 4]";
+    public String _comment_MIN_LEAVES_FOR_TREE;
+    @ConfigEntry(comment = "Minimum number of connected leaves required to validate a valid tree. Acts as a safety check for player houses. [Default: 4]", minInt = 1, maxInt = 100, defaultInt = 4)
     public int MIN_LEAVES_FOR_TREE = 4;
 
-    public String _comment_DECAY_THRESHOLD = "Distance threshold for leaf decay. At 7 (Vanilla), leaves decay normally when completely disconnected. Lower values (1-6) force leaves to decay closer to the log. [Default: 6]";
+    public String _comment_DECAY_THRESHOLD;
+    @ConfigEntry(comment = "Distance threshold for leaf decay. At 7 (Vanilla), leaves decay normally when completely disconnected. Lower values (1-6) force leaves to decay closer to the log. [Default: 6]", minInt = 1, maxInt = 7, defaultInt = 6)
     public int DECAY_THRESHOLD = 6;
 
     // ==========================================
     // --- POISONOUS POTATO TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_POISONOUS_POTATO_COMPOST = "Enable using Poisonous potato with Composter";
+    public String _comment_ENABLE_POISONOUS_POTATO_COMPOST;
+    @ConfigEntry(comment = "Enable using Poisonous potato with Composter")
     public boolean ENABLE_POISONOUS_POTATO_COMPOST = true;
-    public String _comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
+
+    public String _comment_ENABLE_POISONOUS_POTATO_BREWING;
+    @ConfigEntry(comment = "Enable using Poisonous potato to make potion of poison")
     public boolean ENABLE_POISONOUS_POTATO_BREWING = true;
 
     // ==========================================
     // --- HYDRO-HARDENING TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
+    public String _comment_ENABLE_HYDRO_HARDENING;
+    @ConfigEntry(comment = "Enable using Water Bottles to instantly harden Concrete Powder.")
     public boolean ENABLE_HYDRO_HARDENING = true;
-    public String _comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
+
+    public String _comment_ENABLE_SPLASH_HARDENING;
+    @ConfigEntry(comment = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.")
     public boolean ENABLE_SPLASH_HARDENING = true;
 
     // ==========================================
     // --- PICKAXE DIRT REVERSION CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_PICKAXE_DIRT_REVERSION = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.";
+    public String _comment_ENABLE_PICKAXE_DIRT_REVERSION;
+    @ConfigEntry(comment = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.")
     public boolean ENABLE_PICKAXE_DIRT_REVERSION = true;
 
     // ==========================================
     // --- PHANTOM TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_END_PHANTOM = "Enable spawn phantom in the end instead of Overworld";
+    public String _comment_ENABLE_END_PHANTOM;
+    @ConfigEntry(comment = "Enable spawn phantom in the end instead of Overworld")
     public boolean ENABLE_END_PHANTOM = true;
 
-    public String _comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
+    public String _comment_PHANTOM_SPAWN_CHECK_INTERVAL;
+    @ConfigEntry(comment = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]", minInt = 20, maxInt = 12000, defaultInt = 1200)
     public int PHANTOM_CHECK_COOLDOWN = 1200;
 
-    public String _comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]";
+    public String _comment_PHANTOM_THRESHOLD_PRE_ELYTRA;
+    @ConfigEntry(comment = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]", minInt = 1, maxInt = 2400000, defaultInt = 144000)
     public int PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
 
-    public String _comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
+    public String _comment_PHANTOM_THRESHOLD_POST_ELYTRA;
+    @ConfigEntry(comment = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]", minInt = 1, maxInt = 2400000, defaultInt = 72000)
     public int PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
 
-    public String _comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
+    public String _comment_PHANTOM_MIN_COUNT;
+    @ConfigEntry(comment = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]", minInt = 1, maxInt = 100, defaultInt = 1)
     public int PHANTOM_MIN_COUNT = 1;
 
-    public String _comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
+    public String _comment_PHANTOM_MAX_COUNT;
+    @ConfigEntry(comment = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]", minInt = 1, maxInt = 100, defaultInt = 4)
     public int PHANTOM_MAX_COUNT = 4;
 
-    public String _comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
+    public String _comment_PHANTOM_MIN_SPAWN_HEIGHT;
+    @ConfigEntry(comment = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]", minInt = 0, maxInt = 320, defaultInt = 20)
     public int PHANTOM_MIN_SPAWN_HEIGHT = 20;
 
-    public String _comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
+    public String _comment_PHANTOM_MAX_SPAWN_HEIGHT;
+    @ConfigEntry(comment = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]", minInt = 0, maxInt = 320, defaultInt = 35)
     public int PHANTOM_MAX_SPAWN_HEIGHT = 35;
 
-    public String _comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
+    public String _comment_PHANTOM_MOB_CAP;
+    @ConfigEntry(comment = "The maximum number of Phantoms that can exist at one time. [Default: 8]", minInt = 1, maxInt = 100, defaultInt = 8)
     public int PHANTOM_MOB_CAP = 8;
 
     // ==========================================
     // --- AESTHETIC KITCHEN TWEAK CONFIGURATION ---
     // ==========================================
-    public String _comment_ENABLE_AESTHETIC_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
+    public String _comment_ENABLE_AESTHETIC_KITCHEN;
+    @ConfigEntry(comment = "Master switch for the Aesthetic Kitchen system.")
     public boolean ENABLE_AESTHETIC_KITCHEN = true;
 
-    public String _comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
+    public String _comment_ENABLE_DRY_ROASTING;
+    @ConfigEntry(comment = "Allow roasting raw food on covered stoves (magma, fire, lava).")
     public boolean ENABLE_DRY_ROASTING = true;
 
-    public String _comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
+    public String _comment_ENABLE_CAULDRON_BOILING;
+    @ConfigEntry(comment = "Allow boiling raw food in cauldrons with heat source underneath.")
     public boolean ENABLE_CAULDRON_BOILING = true;
 
-    public String _comment_DEFAULT_COOK_TIME = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.";
+    public String _comment_DEFAULT_COOK_TIME;
+    @ConfigEntry(comment = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.", minInt = 1, maxInt = 72000, defaultInt = 240)
     public int DEFAULT_COOK_TIME = 240;
 
-    public String _comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
+    public String _comment_magmaCookTimes;
+    @ConfigEntry(comment = "Custom cooking times (in ticks) for raw foods cooked on heat sources.")
     public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
     {
         magmaCookTimes.put("minecraft:kelp", 120);
@@ -162,7 +186,8 @@ public class SmallLogicTweaksConfig {
         magmaCookTimes.put("minecraft:rabbit", 360);
     }
 
-    public String _comment_aestheticCookResults = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.";
+    public String _comment_aestheticCookResults;
+    @ConfigEntry(comment = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.")
     public Map<String, String> aestheticCookResults = new java.util.LinkedHashMap<>();
 
     public int getCookTime(net.minecraft.world.item.Item item) {
@@ -180,6 +205,10 @@ public class SmallLogicTweaksConfig {
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
+    public SmallLogicTweaksConfig() {
+        validate();
+    }
+
     // Cấu hình vật lý: Chỉ dùng để lưu/đọc file trên ổ cứng cục bộ
     public static volatile SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
 
@@ -194,243 +223,39 @@ public class SmallLogicTweaksConfig {
     }
 
     public static void load() {
-        // Kiểm tra xem người chơi đã từng có tệp cấu hình trên ổ đĩa chưa
-        if (getConfigFile().exists()) {
-            try {
-                // DỰ PHÒNG CHỐNG TRÀN RAM: Đo dung lượng tệp trước khi đọc.
-                // Nếu tệp lớn một cách bất thường (vượt quá 1MB), chặn đứng hành vi đọc tệp ngay lập tức.
-                if (getConfigFile().length() > MAX_FILE_SIZE_BYTES) {
-                    throw new IOException("Config file is suspiciously large (>" + MAX_FILE_SIZE_BYTES + " bytes). Refusing to load to prevent OutOfMemoryError.");
-                }
-
-                // Đọc toàn bộ nội dung tệp JSON thành một chuỗi String văn bản lớn trong bộ nhớ RAM với bảng mã UTF-8 chuẩn
-                String jsonContent = Files.readString(getConfigFile().toPath(), StandardCharsets.UTF_8);
-
-                // DỰ PHÒNG KÝ TỰ ẨN (UTF-8 BOM): Windows Notepad cũ thường chèn ký tự ẩn \uFEFF vào đầu tệp khi lưu.
-                // Nếu không loại bỏ byte này, Gson sẽ báo lỗi cú pháp không nhận diện được dấu ngoặc nhọn '{'.
-                if (jsonContent.startsWith("\uFEFF")) {
-                    jsonContent = jsonContent.substring(1); // Cắt bỏ ký tự ẩn đầu tiên, chỉ giữ lại phần văn bản JSON sạch
-                }
-
-                // Chuyển chuỗi văn bản thành một cây đối tượng cấu trúc JsonObject thô để bóc tách từng cặp khóa-giá trị
-                JsonObject rawObject = GSON.fromJson(jsonContent, JsonObject.class);
-
-                if (rawObject != null) {
-                    // Tạo một JsonObject mới để chứa dữ liệu sau khi đã được chuẩn hóa chữ Hoa/Thường
-                    JsonObject normalizedObject = new JsonObject();
-
-                    // DỰ PHÒNG LỖI VIẾT HOA/VIẾT THƯỜNG (Case-Insensitivity): Duyệt qua từng khóa trong file JSON của người dùng
-                    for (Map.Entry<String, JsonElement> entry : rawObject.entrySet()) {
-                        String key = entry.getKey();
-                        // Chuyển toàn bộ tên biến về chữ in hoa chuẩn hóa theo hệ thống của Java (Locale.ROOT để tránh lỗi phân vùng ngôn ngữ)
-                        String normalizedKey = key.toUpperCase(Locale.ROOT);
-
-                        // Xử lý biệt lệ cho các trường ghi chú: Hệ thống Java dùng chữ thường "_comment_..."
-                        // Nếu khóa bắt đầu bằng "_COMMENT_", ta đổi lại thành "_comment_" kèm phần đuôi viết hoa để khớp với thuộc tính lớp
-                        if (normalizedKey.startsWith("_COMMENT_")) {
-                            normalizedKey = "_comment_" + normalizedKey.substring(9);
-                        }
-
-                        // Đưa cặp khóa đã chuẩn hóa và giá trị gốc vào đối tượng JSON sạch
-                        normalizedObject.add(normalizedKey, entry.getValue());
-                    }
-
-                    // Ép kiểu JsonObject đã chuẩn hóa hoàn toàn thành đối tượng Java chuyên dụng (Thực thể tạm thời `loaded`)
-                    SmallLogicTweaksConfig loaded = GSON.fromJson(normalizedObject, SmallLogicTweaksConfig.class);
-
-                    if (loaded != null) {
-                        // DỰ PHÒNG LỖI SAI BIÊN LOGIC: Tiến hành kiểm tra và sửa đổi các thông số số nguyên ngay trên thực thể tạm
-                        loaded.validate();
-
-                        // Gán dữ liệu đọc được vào cấu hình cục bộ
-                        LOCAL_INSTANCE = loaded;
-
-                        // DỰ PHÒNG XUNG ĐỘT LUỒNG (Race Condition): Sau khi dữ liệu đã sạch 100%, mới hoán đổi tham chiếu vào biến INSTANCE toàn cục.
-                        // Việc này đảm bảo các luồng game khác không bao giờ đọc phải dữ liệu rác hoặc dữ liệu lỗi trong quá trình nạp file.
-                        ACTIVE_INSTANCE = loaded;
-
-                        // Đồng bộ ngược lại cấu trúc sạch (đã sửa lỗi biên, điền thiếu comment nếu có) đè lên đĩa cứng
-                        save();
-
-                        if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                            LOGGER.info("Successfully loaded, normalized, and self-healed config file.");
-                        }
-                    } else {
-                        // Ném ngoại lệ cú pháp nếu quá trình ánh xạ đối tượng trả về null (Ví dụ người chơi nhập mảng rỗng `[]`)
-                        throw new JsonSyntaxException("Config file is empty.");
-                    }
-                } else {
-                    // Ném ngoại lệ nếu cấu trúc gốc không khớp định dạng của một khối JSON lồng `{}`
-                    throw new JsonSyntaxException("Config file structure is invalid.");
-                }
-            } catch (JsonSyntaxException | IOException e) {
-                // DỰ PHÒNG LỖI FILE HỎNG/SAI CÚ PHÁP: Nếu người chơi gõ thiếu dấu phẩy, điền chữ vào biến số...
-                // Khối catch này sẽ chặn đứng lỗi sập game (Crash), in log chi tiết thông báo lỗi ra màn hình console.
-                LOGGER.error("Config file is corrupted or invalid! Resetting to default configuration. Error: {}", e.getMessage());
-
-                // Khôi phục lại trạng thái mod về mặc định của nhà phát triển trực tiếp trên RAM để cứu vãn phiên chơi
-                LOCAL_INSTANCE = new SmallLogicTweaksConfig();
-                ACTIVE_INSTANCE = LOCAL_INSTANCE;
-                // Ghi đè lại file mặc định sạch lên đĩa cứng để tự sửa lỗi cho các lần khởi động game sau
-                save();
-            }
-        } else {
-            // Trường hợp file không tồn tại (Lần đầu chạy mod), in log thông báo và sinh file cấu hình mặc định
-            if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                LOGGER.info("Config file not found, initializing default...");
-            }
-            save();
-        }
+        LOCAL_INSTANCE = loadOrCreate(
+                getConfigFile(),
+                SmallLogicTweaksConfig.class,
+                SmallLogicTweaksConfig::new,
+                GSON,
+                LOGGER,
+                SltError.CFG_CORRUPTED,
+                SltError.CFG_SAVE_FAILED
+        );
+        ACTIVE_INSTANCE = LOCAL_INSTANCE;
     }
 
     public static void save() {
-        // DỰ PHÒNG MẤT THƯ MỤC: Nếu thư mục chứa file cấu hình bị xóa mất (hoặc chưa sinh ra), tự động tạo lại các tầng thư mục
-        File parentDir = getConfigFile().getParentFile();
-        if (parentDir != null) {
-            try {
-                Files.createDirectories(parentDir.toPath());
-            } catch (IOException e) {
-                LOGGER.error("Failed to create config directory: {}", parentDir.getAbsolutePath(), e);
-            }
-        }
-
-        // Định nghĩa đường dẫn cho tệp tin tạm thời có đuôi `.tmp`
-        File tempFile = new File(getConfigFile().getParentFile(), getConfigFile().getName() + ".tmp");
-
-        try {
-            // BƯỚC 1 CỦA GHI NGUYÊN TỬ (Atomic Save): Ghi toàn bộ dữ liệu cấu hình hiện tại vào tệp tạm thời `.tmp` trước.
-            // DỰ PHÒNG MẤT ĐIỆN/ĐẦY Ổ CỨNG GIỮA CHỪNG: Sử dụng UTF-8 chuẩn để tránh lỗi font chữ trên mọi hệ điều hành (kể cả Windows).
-            try (java.io.BufferedWriter writer = Files.newBufferedWriter(tempFile.toPath(), StandardCharsets.UTF_8)) {
-                GSON.toJson(LOCAL_INSTANCE, writer);
-            }
-
-            // BƯỚC 2 CỦA GHI NGUYÊN TỬ: Ra lệnh cho hệ điều hành thực hiện tráo đổi (Move) tệp `.tmp` đè lên tệp gốc `.json`.
-            // Thao tác ATOMIC_MOVE diễn ra ở tầng nhân hệ điều hành trong tích tắc (vài phần triệu giây), loại bỏ hoàn toàn nguy cơ tệp tin bị cắt cụt dữ liệu (0 byte) khi mất điện đột ngột.
-            Files.move(tempFile.toPath(), getConfigFile().toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-
-            if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                LOGGER.info("Successfully saved config file securely to: {}", getConfigFile().getAbsolutePath());
-            }
-        } catch (IOException e) {
-            // DỰ PHÒNG LỖI KHÓA FILE HỆ ĐIỀU HÀNH: Nếu ổ cứng bị đóng băng (Read-only) hoặc đầy dung lượng hoàn toàn, in log lỗi
-            LOGGER.error("Failed to save config file securely: {}", e.getMessage());
-
-            // Hậu kiểm an toàn: Nếu tệp tạm thời vẫn đang lơ lửng trên ổ đĩa do lỗi ghi giữa chừng, thực hiện xóa bỏ để tránh rác thư mục
-            try {
-                Files.deleteIfExists(tempFile.toPath());
-            } catch (IOException err) {
-                LOGGER.debug("Failed to delete temporary config file: {}", tempFile.getAbsolutePath(), err);
-            }
+        saveAtomically(getConfigFile(), LOCAL_INSTANCE, GSON, LOGGER, SltError.CFG_SAVE_FAILED);
+        if (ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
+            LOGGER.info("Successfully saved config file securely to: {}", getConfigFile().getAbsolutePath());
         }
     }
 
+    @Override
     public void validate() {
-        // GHI ĐÈ VÔ ĐIỀU KIỆN: Tự động phục hồi toàn bộ nội dung hướng dẫn của nhà phát triển
-        // Cho dù người dùng xóa, gán null, hay viết sai lệch nội dung, hệ thống sẽ luôn khôi phục về dạng chuẩn.
-        this._comment_ENABLE_DEBUG_LOGS = "Enable or disable general debug logs for the mod.";
-        this._comment_ENABLE_TIMBER_DEBUG_LOGS = "Enable or disable technical logs for the tree chopper feature.";
-        this._comment_ENABLE_CHARCOAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Charcoal.";
-        this._comment_ENABLE_COAL_TO_BLACK_DYE = "Allow crafting Black Dye directly from Coal.";
-        this._comment_ENABLE_JUNGLE_SUSTAINABILITY = "Increase the drop rate of Jungle Saplings from Jungle Leaves.";
-        this._comment_ENABLE_BONE_MEAL_TWEAK = "Enable using Bone Meal on dirt to turn it into grass or mycelium.";
-        this._comment_REQUIRE_NEIGHBOR_SOURCE = "If true, requires at least one matching grass/mycelium block in a 3x3x3 area.";
-        this._comment_ALLOW_ALL_DIRT_TYPES = "If true, allows Bone Meal to work on coarse dirt, rooted dirt. If false, only normal dirt.";
-        this._comment_ENABLE_AUTO_LEAVES_DECAY = "Make leaves decay instantly when a tree is cut down using Timber.";
-        this._comment_MAX_LOG_HORIZONTAL_RADIUS = "Maximum horizontal distance (X/Z axis) to search for connected logs. NOT RECOMMENT TO CHANGE [Default: 5]";
-        this._comment_MAX_LEAF_DISTANCE = "Maximum distance from the log to search for connected leaves (Vanilla default). NOT RECOMMENT TO CHANGE [Default: 7]";
-        this._comment_MIN_LEAVES_FOR_TREE = "Minimum number of connected leaves required to validate a valid tree. Acts as a safety check for player houses. [Default: 4]";
-        this._comment_DECAY_THRESHOLD = "Distance threshold for leaf decay. At 7 (Vanilla), leaves decay normally when completely disconnected. Lower values (1-6) force leaves to decay closer to the log. [Default: 6]";
-        this._comment_ENABLE_POISONOUS_POTATO_COMPOST = "Enable using Poisonous potato with Composter";
-        this._comment_ENABLE_POISONOUS_POTATO_BREWING = "Enable using Poisonous potato to make potion of poison";
-        this._comment_ENABLE_HYDRO_HARDENING = "Enable using Water Bottles to instantly harden Concrete Powder.";
-        this._comment_ENABLE_SPLASH_HARDENING = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.";
-        this._comment_ENABLE_PICKAXE_DIRT_REVERSION = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.";
-        this._comment_ENABLE_END_PHANTOM = "Enable or disable custom Phantom spawning logic in The End dimension.";
-        this._comment_PHANTOM_SPAWN_CHECK_INTERVAL = "How often (in ticks) the game checks to spawn Phantoms for each player in The End. [Default: 1200 / 1 minute]";
-        this._comment_PHANTOM_THRESHOLD_PRE_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. Before obtain Elytra [Default: 144000 / 6 in-game days]";
-        this._comment_PHANTOM_THRESHOLD_POST_ELYTRA = "The amount of ticks a player must stay awake (insomnia) before Phantoms can spawn. After obtain Elytra [Default: 72000 / 3 in-game days]";
-        this._comment_PHANTOM_MIN_COUNT = "The minimum number of Phantoms that can spawn in a single wave. [Default: 1]";
-        this._comment_PHANTOM_MAX_COUNT = "The maximum number of Phantoms that can spawn in a single wave. [Default: 4]";
-        this._comment_PHANTOM_MIN_SPAWN_HEIGHT = "The minimum height (in blocks) above the player where Phantoms will spawn. [Default: 20]";
-        this._comment_PHANTOM_MAX_SPAWN_HEIGHT = "The maximum height (in blocks) above the player where Phantoms will spawn. [Default: 35]";
-        this._comment_PHANTOM_MOB_CAP = "The maximum number of Phantoms that can exist at one time. [Default: 8]";
-        this._comment_ENABLE_AESTHETIC_KITCHEN = "Master switch for the Aesthetic Kitchen system.";
-        this._comment_ENABLE_DRY_ROASTING = "Allow roasting raw food on covered stoves (magma, fire, lava).";
-        this._comment_ENABLE_CAULDRON_BOILING = "Allow boiling raw food in cauldrons with heat source underneath.";
-        this._comment_magmaCookTimes = "Custom cooking times (in ticks) for raw foods cooked on heat sources.";
-        this._comment_aestheticCookResults = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.";
+        // Tự động chuẩn hóa toàn bộ các trường có chú thích @ConfigEntry (khôi phục comment và kiểm tra biên số nguyên)
+        this.validateAnnotatedFields(LOGGER, SltError.CFG_OUT_OF_BOUNDS);
 
-        // DỰ PHÒNG LỖI PHẠM VI TOÁN HỌC (Out of Bounds): Khống chế bán kính quét khối gỗ từ 1 đến 8 khối.
-        // Nếu đặt số âm hoặc số quá lớn (Ví dụ: 99999), thuật toán tìm kiếm đệ quy sẽ làm tràn bộ nhớ đệm máy chủ và sập game ngay lập tức.
-        if (this.MAX_LOG_HORIZONTAL_RADIUS < 1 || this.MAX_LOG_HORIZONTAL_RADIUS > 8) {
-            LOGGER.error("Invalid value for 'MAX_LOG_HORIZONTAL_RADIUS' ({}). Must be between 1 and 8. Resetting to default: 5", this.MAX_LOG_HORIZONTAL_RADIUS);
-            this.MAX_LOG_HORIZONTAL_RADIUS = 5; // Ép chỉ số lỗi quay về giá trị an toàn mặc định
-        }
-
-        // Khống chế khoảng cách quét khối lá cây từ 1 đến 15 khối để giữ hiệu năng CPU ổn định khi chặt cây lớn
-        if (this.MAX_LEAF_DISTANCE < 1 || this.MAX_LEAF_DISTANCE > 15) {
-            LOGGER.error("Invalid value for 'MAX_LEAF_DISTANCE' ({}). Must be between 1 and 15. Resetting to default: 7", this.MAX_LEAF_DISTANCE);
-            this.MAX_LEAF_DISTANCE = 7;
-        }
-
-        // Chặn lỗi số âm đối với số lượng lá tối thiểu yêu cầu để nhận diện một cây tự nhiên
-        if (this.MIN_LEAVES_FOR_TREE <= 0) {
-            LOGGER.error("Invalid value for 'MIN_LEAVES_FOR_TREE' ({}). Cannot be negative. Resetting to default: 4", this.MIN_LEAVES_FOR_TREE);
-            this.MIN_LEAVES_FOR_TREE = 4;
-        }
-
-        // DỰ PHÒNG CHO ĐỊNH DẠNG MINECRAFT BLOCKSTATE: Thuộc tính distance của lá cây nguyên bản Minecraft chỉ chạy từ 1 đến 7.
-        // Bất kỳ con số nào nằm ngoài khoảng [1-7] này khi truyền vào BlockState sẽ lập tức ném lỗi IllegalArgumentException và gây crash thế giới chơi game.
-        if (this.DECAY_THRESHOLD < 1 || this.DECAY_THRESHOLD > 7) {
-            LOGGER.error("Invalid value for 'DECAY_THRESHOLD' ({}). Must be between 1 and 7. Resetting to default: 6", this.DECAY_THRESHOLD);
-            this.DECAY_THRESHOLD = 6;
-        }
-
-        // Khống chế tần suất kiểm tra tối thiểu là 1 giây (20 ticks) để tránh gây quá tải máy chủ
-        if (this.PHANTOM_CHECK_COOLDOWN < 20 || this.PHANTOM_CHECK_COOLDOWN > 12000) {
-            LOGGER.error("Invalid value for 'PHANTOM_CHECK_COOLDOWN' ({}). Must be between 20 and 12000. Resetting to default: 1200", this.PHANTOM_CHECK_COOLDOWN);
-            this.PHANTOM_CHECK_COOLDOWN = 1200;
-        }
-
-        // Khống chế thời gian mất ngủ yêu cầu (1 tick đến 100 ngày).
-        if (this.PHANTOM_THRESHOLD_PRE_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_PRE_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_THRESHOLD_PRE_ELYTRA' ({}). Must be between 1 and 2400000. Resetting to default: 144000", this.PHANTOM_THRESHOLD_PRE_ELYTRA);
-            this.PHANTOM_THRESHOLD_PRE_ELYTRA = 144000;
-        }
-
-        if (this.PHANTOM_THRESHOLD_POST_ELYTRA <= 0 || this.PHANTOM_THRESHOLD_POST_ELYTRA > 2400000) {
-            LOGGER.error("Invalid value for 'PHANTOM_THRESHOLD_POST_ELYTRA' ({}). Must be between 1 and 2400000. Resetting to default: 72000", this.PHANTOM_THRESHOLD_POST_ELYTRA);
-            this.PHANTOM_THRESHOLD_POST_ELYTRA = 72000;
-        }
-
-        // Khống chế giới hạn sinh quái thấp nhất.
-        if (this.PHANTOM_MIN_COUNT < 1 || this.PHANTOM_MIN_COUNT > 100) {
-            LOGGER.error("Invalid value for 'PHANTOM_MIN_COUNT' ({}). Must be between 1 and 100. Resetting to default: 1", this.PHANTOM_MIN_COUNT);
-            this.PHANTOM_MIN_COUNT = 1;
-        }
-
-        // Khống chế giới hạn sinh quái cao nhất (phải >= số tối thiểu và <= 100).
+        // Xử lý các ràng buộc chéo phụ thuộc giữa nhiều biến (Cross-field dependencies)
         if (this.PHANTOM_MAX_COUNT < this.PHANTOM_MIN_COUNT || this.PHANTOM_MAX_COUNT > 100) {
-            LOGGER.error("Invalid value for 'PHANTOM_MAX_COUNT' ({}). Must be between {} and 100. Resetting to match min count: {}", this.PHANTOM_MAX_COUNT, this.PHANTOM_MIN_COUNT, this.PHANTOM_MIN_COUNT);
+            SltError.CFG_OUT_OF_BOUNDS.logError(LOGGER, "PHANTOM_MAX_COUNT", this.PHANTOM_MAX_COUNT, this.PHANTOM_MIN_COUNT, 100, this.PHANTOM_MIN_COUNT);
             this.PHANTOM_MAX_COUNT = this.PHANTOM_MIN_COUNT;
         }
 
-        // Khống chế độ cao xuất hiện thấp nhất (từ 0 đến 320).
-        if (this.PHANTOM_MIN_SPAWN_HEIGHT < 0 || this.PHANTOM_MIN_SPAWN_HEIGHT > 320) {
-            LOGGER.error("Invalid value for 'PHANTOM_MIN_SPAWN_HEIGHT' ({}). Must be between 0 and 320. Resetting to default: 20", this.PHANTOM_MIN_SPAWN_HEIGHT);
-            this.PHANTOM_MIN_SPAWN_HEIGHT = 20;
-        }
-
-        // Khống chế độ cao xuất hiện lớn nhất (phải >= độ cao tối thiểu và <= 320).
         if (this.PHANTOM_MAX_SPAWN_HEIGHT < this.PHANTOM_MIN_SPAWN_HEIGHT || this.PHANTOM_MAX_SPAWN_HEIGHT > 320) {
-            LOGGER.error("Invalid value for 'PHANTOM_MAX_SPAWN_HEIGHT' ({}). Must be between {} and 320. Resetting to match min height: {}", this.PHANTOM_MAX_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT);
+            SltError.CFG_OUT_OF_BOUNDS.logError(LOGGER, "PHANTOM_MAX_SPAWN_HEIGHT", this.PHANTOM_MAX_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT, 320, this.PHANTOM_MIN_SPAWN_HEIGHT);
             this.PHANTOM_MAX_SPAWN_HEIGHT = this.PHANTOM_MIN_SPAWN_HEIGHT;
-        }
-
-        // Khống chế giới hạn quái vật cục bộ (Mob Cap).
-        if (this.PHANTOM_MOB_CAP <= 0 || this.PHANTOM_MOB_CAP > 100) {
-            LOGGER.error("Invalid value for 'PHANTOM_MOB_CAP' ({}). Must be between 0 and 100. Resetting to default: 8", this.PHANTOM_MOB_CAP);
-            this.PHANTOM_MOB_CAP = 8;
         }
     }
 
@@ -450,7 +275,7 @@ public class SmallLogicTweaksConfig {
             // Cấu hình Timber bị hỏng/độc hại -> Tắt hoàn toàn ở Client
             this.ENABLE_TIMBER_TWEAK = false;
             tampered = true;
-            LOGGER.warn("[Failsafe] Timber tweak configurations were tampered/out-of-bounds. Feature disabled locally to prevent OOM/Lag.");
+            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "TIMBER");
         }
 
         // 3. Kiểm tra chéo: Tính năng PHANTOM
@@ -465,7 +290,7 @@ public class SmallLogicTweaksConfig {
 
             this.ENABLE_END_PHANTOM = false;
             tampered = true;
-            LOGGER.warn("[Failsafe] Phantom tweak configurations were tampered/out-of-bounds. Feature disabled locally.");
+            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "PHANTOM");
         }
 
         return tampered;

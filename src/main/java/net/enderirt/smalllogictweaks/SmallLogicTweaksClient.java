@@ -3,6 +3,7 @@ package net.enderirt.smalllogictweaks;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.enderirt.smalllogictweaks.core.error.SltError;
 import net.enderirt.smalllogictweaks.network.ConfigSyncPayload;
 
 public class SmallLogicTweaksClient implements ClientModInitializer {
@@ -35,7 +36,7 @@ public class SmallLogicTweaksClient implements ClientModInitializer {
                         }
                     }
                 } catch (Exception e) {
-                    SmallLogicTweaks.LOGGER.error("Failed to parse Server config", e);
+                    SltError.NET_PARSE_FAILED.logError(SmallLogicTweaks.LOGGER, e.getMessage());
                 }
             });
         });
