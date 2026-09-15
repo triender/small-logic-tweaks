@@ -24,7 +24,10 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.fabricmc.fabric.api.registry.FabricPotionBrewingBuilder;
+import net.fabricmc.fabric.api.item.v1.DefaultItemComponentEvents;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.Compostable;
+import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -408,20 +411,25 @@ public class SmallLogicTweaksEvents {
 
     private static void registerPotatoTweaks() {
         // Tweak 1: Sử dụng với Thùng ủ phân (Composter)
+        // MC 26.3: ComposterBlock.COMPOSTABLES đã bị xóa, dùng DataComponents.COMPOSTABLE qua DefaultItemComponentEvents
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
-            net.minecraft.world.level.block.ComposterBlock.COMPOSTABLES.put(Items.POISONOUS_POTATO, 0.65F);
-            debugLog("[Potato Tweak] Registered Poisonous Potato to Composter.");
+            DefaultItemComponentEvents.MODIFY.register(context -> {
+                context.modify(Items.POISONOUS_POTATO, builder -> {
+                    // ResolvableInt.Constant(65) = 65% xác suất (so sánh với vanilla medium = 65%)
+                    builder.set(DataComponents.COMPOSTABLE, new Compostable(new ResolvableInt.Constant(65)));
+                });
+            });
+            debugLog("[Potato Tweak] Registered Poisonous Potato to Composter via DefaultItemComponentEvents.");
         }
 
         // Tweak 2: Bột chế thuốc độc (Potion of Poison)
+        // MC 26.3: FabricPotionBrewingBuilder đã bị xóa, brewing là data-driven recipe.
+        // Recipe JSON nằm tại: data/small_logic_tweaks/recipe/brewing/potion_awkward_poisonous_potato.json
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
-            FabricPotionBrewingBuilder.BUILD.register(builder -> {
-                // Dùng phương thức addMix thông qua biến builder
-                builder.addMix(Potions.AWKWARD, Items.POISONOUS_POTATO, Potions.POISON);
-            });
-            debugLog("[Potato Tweak] Registered Poisonous Potato brewing recipe via Fabric API.");
+            debugLog("[Potato Tweak] Poisonous Potato brewing recipe is registered via data-pack JSON (26.3 data-driven system).");
         }
     }
+
 
     public static boolean tryHardenConcrete(net.minecraft.world.level.Level world, net.minecraft.core.BlockPos pos) {
         BlockState state = world.getBlockState(pos);
@@ -488,7 +496,7 @@ public class SmallLogicTweaksEvents {
                                 player.setItemInHand(hand, glassBottle);
                             } else if (!player.getInventory().add(glassBottle)) {
                                 // Nếu hành trang đầy, vứt chai rỗng xuống đất
-                                player.drop(glassBottle, false);
+                                player.drop(glassBottle, false, net.minecraft.util.Prediction.SERVER_ONLY);
                             }
                         }
 
@@ -553,7 +561,7 @@ public class SmallLogicTweaksEvents {
             }
 
             // 5. Phát âm thanh cuốc xới đất
-            world.playSound(null, pos, SoundEvents.SHOVEL_FLATTEN, SoundSource.BLOCKS, 1.0f, 0.9f + world.getRandom().nextFloat() * 0.2f);
+            world.playSound(null, pos, SoundEvents.SHOVEL_FLATTEN.value(), SoundSource.BLOCKS, 1.0f, 0.9f + world.getRandom().nextFloat() * 0.2f);
 
             // 6. Bắn hiệu ứng hạt bụi / khói nhẹ
             if (world instanceof ServerLevel serverLevel) {
