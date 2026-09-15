@@ -1,28 +1,35 @@
 # 🛠️ Unreleased (Đang phát triển)
 
-### ✨ Added
-* **Dirt Cycle (Pickaxe Reversion):** Right-click Farmland or Dirt Path with any Pickaxe to restore it back into normal Dirt. Consumes 1 tool durability (supports Unbreaking and proper tool-breaking mechanics) with custom digging sound and dust particles.
-* **Data-driven Reversion Tag:** Introduced `#small_logic_tweaks:pickaxe_reversion` block tag allowing players and modpack creators to customize which cultivated/compressed ground blocks can be reverted by pickaxes.
-* **Core Architecture (Standardized Error Codes & Config Engine):** Integrated `IModError` and `SltError` taxonomy across configuration and networking. Streamlined configuration loading and saving with generic `BaseModConfig` engine featuring automated annotation scanning and atomic persistence.
-
 ---
-# 🍳 Aesthetic Kitchen Update (Version 1.5.0)
+# 🌱 Dirt Reversion & 🍳 Aesthetic Kitchen Update (Version 1.5.0)
 
 ### ✨ Added
-* **Aesthetic Kitchen System:** Converts decorative, non-functional kitchen designs into interactive, physics-based cooking stations without introducing new custom blocks.
+
+**🌱 Dirt Cycle (Pickaxe Reversion):**
+* **Pickaxe Reversion:** Right-click Farmland or Dirt Path with any Pickaxe to restore it back into normal Dirt. Consumes 1 tool durability (supports Unbreaking and proper tool-breaking mechanics) with custom digging sound and dust particles.
+* **Data-driven Reversion Tag:** Introduced `#small_logic_tweaks:pickaxe_reversion` block tag allowing players and modpack creators to customize which cultivated/compressed ground blocks can be reverted by pickaxes.
+
+**🍳 Aesthetic Kitchen System:**
 * **Dry Roasting:** Allows raw food entities to be slowly roasted when placed directly on heat sources (Magma, Fire, Lava) even when covered by Trapdoors, Pressure Plates, Slabs, or Carpets.
 * **Cauldron Boiling:** Enables food stacks dropped into a heated Water Cauldron to be sequentially boiled, spawning cooked items one by one with a water-pop effect.
 * **Immersive Audio & Visuals:** Introduces dynamic cooking feedback, including crackling fire sounds, boiling bubbles, smoke particles, and specific sizzle or splash effects upon cooking completion.
 * **Carpet Insulation:** Simulates thermal insulation where placing a wool carpet over a heat source reduces the overall cooking speed by 1.5x.
 * **Thermodynamics (Heat Decay):** Implements progress retention where cooking progress gradually decays linearly over time if the food item is moved or pushed away from the heat source.
 
+**⚙️ Core Architecture:**
+* **Standardized Error Codes & Config Engine:** Integrated `IModError` and `SltError` taxonomy across configuration and networking. Streamlined configuration loading and saving with generic `BaseModConfig` engine featuring automated annotation scanning and atomic persistence.
+
 ### ⚙️ Changed
 * **Stove Reservation Cache:** Restricts each heat source block to process only one food item entity at a time to maintain gameplay balance and prevent mass-cooking exploitation.
+* **[Chỉ dành cho bản 26.3] Brewing (Data-driven):** Poisonous Potato brewing recipe migrated to the new `minecraft:brewing` data-driven recipe system. Recipe file: `data/small_logic_tweaks/recipe/brewing/`.
+* **[Chỉ dành cho bản 26.3] Composting (Data Component):** Poisonous Potato composting now registered via `DataComponents.COMPOSTABLE` using Fabric's `DefaultItemComponentEvents` (replaces removed `ComposterBlock.COMPOSTABLES`).
 
 ### 🛡️ Security
 * **Item Entity Merge Prevention:** Prevents food items undergoing the cooking process from automatically merging with other dropped items, eliminating duplication exploits and stack-processing bugs.
 
 **Status:** Released. Feedback is welcome!
+
+
 
 ---
 # 🐛 Hotfix (Version 1.4.1)
