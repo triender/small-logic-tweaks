@@ -21,8 +21,8 @@
 
 ### ⚙️ Changed
 * **Stove Reservation Cache:** Restricts each heat source block to process only one food item entity at a time to maintain gameplay balance and prevent mass-cooking exploitation.
-* **[Chỉ dành cho bản 26.3] Brewing (Data-driven):** Poisonous Potato brewing recipe migrated to the new `minecraft:brewing` data-driven recipe system. Recipe file: `data/small_logic_tweaks/recipe/brewing/`.
-* **[Chỉ dành cho bản 26.3] Composting (Data Component):** Poisonous Potato composting now registered via `DataComponents.COMPOSTABLE` using Fabric's `DefaultItemComponentEvents` (replaces removed `ComposterBlock.COMPOSTABLES`).
+* **[Only for 26.3] Brewing (Data-driven):** Poisonous Potato brewing recipe migrated to the new `minecraft:brewing` data-driven recipe system. Recipe file: `data/small_logic_tweaks/recipe/brewing/`.
+* **[Only for 26.3] Composting (Data Component):** Poisonous Potato composting now registered via `DataComponents.COMPOSTABLE` using Fabric's `DefaultItemComponentEvents` (replaces removed `ComposterBlock.COMPOSTABLES`).
 
 ### 🛡️ Security
 * **Item Entity Merge Prevention:** Prevents food items undergoing the cooking process from automatically merging with other dropped items, eliminating duplication exploits and stack-processing bugs.
