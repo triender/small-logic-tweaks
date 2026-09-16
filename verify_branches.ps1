@@ -1,7 +1,7 @@
 # verify_branches.ps1
 # Automates the verification process (compilation, JUnit tests, and GameTests) for Minecraft mod versions 26.1.2 and 26.2
 
-$branches = @("26.1.2", "26.2")
+$branches = @("26.1.2", "26.2", "26.3")
 $results = [ordered]@{}
 
 # Save current branch

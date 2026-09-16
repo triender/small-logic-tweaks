@@ -27,7 +27,7 @@ if ($gitStatus) {
     exit 1
 }
 
-$branches = @("26.1.2", "26.2")
+$branches = @("26.1.2", "26.2", "26.3")
 $compileStatus = [ordered]@{}
 $junitStatus = [ordered]@{}
 $gametestStatus = [ordered]@{}
