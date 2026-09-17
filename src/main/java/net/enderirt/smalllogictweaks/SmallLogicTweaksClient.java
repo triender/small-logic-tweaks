@@ -3,6 +3,7 @@ package net.enderirt.smalllogictweaks;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.enderirt.smalllogictweaks.core.error.SltError;
 import net.enderirt.smalllogictweaks.network.ConfigSyncPayload;
 
 public class SmallLogicTweaksClient implements ClientModInitializer {
@@ -14,20 +15,24 @@ public class SmallLogicTweaksClient implements ClientModInitializer {
                 try {
                     SmallLogicTweaksConfig rawServerConfig = SmallLogicTweaksConfig.GSON.fromJson(payload.jsonConfig(), SmallLogicTweaksConfig.class);
                     if (rawServerConfig != null) {
-                        // Tạo một bản sao độc lập (Deep Copy hoặc tạo mới bằng GSON) để làm mốc đối chiếu
+                        // [VI] Tạo bản sao độc lập để thực hiện kiểm tra chuẩn hóa dữ liệu phòng vệ
+                        // [EN] Create an independent copy to perform defensive validation and bounds checking
                         SmallLogicTweaksConfig safeConfig = SmallLogicTweaksConfig.GSON.fromJson(payload.jsonConfig(), SmallLogicTweaksConfig.class);
 
-                        // Gọi hàm dự phòng để tự động vô hiệu hóa các tính năng có nguy cơ tấn công
-                        boolean isTampered = safeConfig.fallbackFailsafe(rawServerConfig);
+                        // [VI] Kích hoạt cơ chế phòng vệ biên để vô hiệu hóa tính năng nếu cấu hình vượt biên an toàn
+                        // [EN] Trigger defensive bounds check to disable features locally if configuration exceeds safe limits
+                        boolean hasOutOfBounds = safeConfig.fallbackFailsafe(rawServerConfig);
 
-                        // Nạp vào RAM cấu hình đã an toàn
+                        // [VI] Nạp cấu hình an toàn đã được chuẩn hóa vào phiên làm việc hiện hành
+                        // [EN] Load sanitized and validated configuration into active runtime instance
                         SmallLogicTweaksConfig.ACTIVE_INSTANCE = safeConfig;
 
-                        // Nếu phát hiện cấu hình bị can thiệp/vượt biên, thông báo cho người chơi
-                        if (isTampered) {
+                        // [VI] Thông báo cho người chơi nếu cấu hình máy chủ vượt biên an toàn cục bộ
+                        // [EN] Notify player if server configuration exceeds local safety boundaries
+                        if (hasOutOfBounds) {
                             if (context.client().player != null) {
                                 context.client().player.sendSystemMessage(
-                                        net.minecraft.network.chat.Component.literal("§e[Small Logic Tweaks] Server configuration is invalid. Some tweaks are disabled for your safety.")
+                                        net.minecraft.network.chat.Component.literal("§e[Small Logic Tweaks] Server configuration is out of safe bounds. Some tweaks are disabled locally.")
                                 );
                             }
                         } else {
@@ -35,7 +40,7 @@ public class SmallLogicTweaksClient implements ClientModInitializer {
                         }
                     }
                 } catch (Exception e) {
-                    SmallLogicTweaks.LOGGER.error("Failed to parse Server config", e);
+                    SltError.NET_PARSE_FAILED.logError(SmallLogicTweaks.LOGGER, e.getMessage());
                 }
             });
         });
