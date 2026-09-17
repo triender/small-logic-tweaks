@@ -246,15 +246,18 @@ tasks.register("verifyChangelog") {
 	}
 }
 
+def modrinthVersionType = getVersionType()
+def modrinthChangelog = getChangelogText()
+
 modrinth {
 	token = System.getenv("MODRINTH_TOKEN") ?: ""
 	projectId = "small-logic-tweak"
 	versionNumber = project.version
 	versionName = "Small Logic Tweaks ${project.version}"
-	versionType = getVersionType()
+	versionType = modrinthVersionType
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
-	changelog = getChangelogText()
+	changelog = modrinthChangelog
 	uploadFile = tasks.jar
 	
 	dependencies {
