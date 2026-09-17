@@ -147,19 +147,66 @@ jacocoTestReport {
 	}
 }
 
+// Function to dynamically extract base version without the minecraft suffix
+def getBaseVersion() {
+	def mcSuffix = "-mc" + project.minecraft_version
+	def ver = project.version.toString()
+	if (ver.endsWith(mcSuffix)) {
+		return ver.substring(0, ver.length() - mcSuffix.length())
+	}
+	def hyphenIdx = ver.lastIndexOf("-mc")
+	if (hyphenIdx > 0) {
+		return ver.substring(0, hyphenIdx)
+	}
+	return ver.split('-')[0]
+}
+
+// Function to dynamically extract version release type (release, beta, alpha)
+def getVersionType() {
+	def changelogFile = rootProject.file("CHANGE_LOG.md")
+	def baseVer = getBaseVersion()
+	
+	if (changelogFile.exists()) {
+		def lines = changelogFile.readLines()
+		def foundVersion = false
+		
+		for (line in lines) {
+			if (line.startsWith("# ") && (line.contains("Version " + baseVer) || line.contains("Version: " + baseVer))) {
+				foundVersion = true
+				continue
+			}
+			if (foundVersion) {
+				if (line.startsWith("---")) break
+				def trimmed = line.trim()
+				if (trimmed.toLowerCase().startsWith("**status:**") || trimmed.toLowerCase().startsWith("status:")) {
+					def statusLower = trimmed.toLowerCase()
+					if (statusLower.contains("release")) return "release"
+					if (statusLower.contains("beta")) return "beta"
+					if (statusLower.contains("alpha")) return "alpha"
+				}
+			}
+		}
+	}
+	
+	// Fallback based on version string
+	def verLower = project.version.toString().toLowerCase()
+	if (verLower.contains("alpha")) return "alpha"
+	if (verLower.contains("beta")) return "beta"
+	return "release"
+}
+
 // Function to dynamically extract changelog for current version
 def getChangelogText() {
 	def changelogFile = rootProject.file("CHANGE_LOG.md")
 	if (!changelogFile.exists()) return "No changelog provided."
 	
-	def versionStr = project.version.toString().split('-')[0]
-	
+	def baseVer = getBaseVersion()
 	def lines = changelogFile.readLines()
 	def changelogText = ""
 	def foundVersion = false
 	
 	for (line in lines) {
-		if (line.startsWith("# ") && line.contains("Version " + versionStr)) {
+		if (line.startsWith("# ") && (line.contains("Version " + baseVer) || line.contains("Version: " + baseVer))) {
 			foundVersion = true
 			continue
 		}
@@ -171,15 +218,20 @@ def getChangelogText() {
 		}
 	}
 	
-	return changelogText.trim() ?: "No changelog provided for version ${versionStr}."
+	return changelogText.trim() ?: "No changelog provided for version ${baseVer}."
 }
 
-// Task to print the extracted changelog (for verification)
+// Task to print the extracted changelog & metadata (for verification)
 tasks.register("printChangelog") {
 	doLast {
-		println "--- EXTRACTED CHANGELOG FOR VERSION ${project.version} ---"
+		println "--- VERSION & CHANGELOG INFO ---"
+		println "Full Mod Version  : ${project.version}"
+		println "Base Version      : ${getBaseVersion()}"
+		println "Detected Type     : ${getVersionType()}"
+		println "Target Minecraft  : ${project.minecraft_version}"
+		println "--- EXTRACTED CHANGELOG ---"
 		println getChangelogText()
-		println "--------------------------------------------------------"
+		println "--------------------------------"
 	}
 }
 
@@ -190,7 +242,7 @@ tasks.register("verifyChangelog") {
 		if (text.startsWith("No changelog provided")) {
 			throw new GradleException("Error: Changelog is missing for version: ${project.version}")
 		}
-		println "Changelog verified successfully."
+		println "Changelog verified successfully (Base: ${getBaseVersion()}, Type: ${getVersionType()})."
 	}
 }
 
@@ -199,7 +251,7 @@ modrinth {
 	projectId = "small-logic-tweak"
 	versionNumber = project.version
 	versionName = "Small Logic Tweaks ${project.version}"
-	versionType = "beta"
+	versionType = getVersionType()
 	gameVersions = [project.minecraft_version]
 	loaders = ["fabric"]
 	changelog = getChangelogText()

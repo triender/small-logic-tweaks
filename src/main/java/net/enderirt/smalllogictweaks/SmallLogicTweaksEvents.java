@@ -159,14 +159,34 @@ public class SmallLogicTweaksEvents {
 
     public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
 
+    /**
+     * VI: Cấu trúc kết quả phân tích cấu trúc cây gỗ Timber.
+     * EN: Timber tree structure analysis result record.
+     */
     public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
-    private static final Cache<BlockPos, Float> TIMBER_SPEED_CACHE = CacheBuilder.newBuilder()
-            .maximumSize(10) // Nhớ 10 khối gần nhất (Chống lag khi lắc chuột qua lại)
-            .expireAfterWrite(2, TimeUnit.SECONDS) // Tự động xóa khỏi RAM sau 2 giây (Chống Leak RAM)
+    /**
+     * VI: Khóa bộ nhớ đệm tốc độ đào Timber tổng hợp toàn bộ các chiều phụ thuộc dữ liệu:
+     * Chiều không gian, tọa độ khối, UUID người chơi, cấp độ phù phép Timber và trạng thái cúi người (Shift).
+     * EN: Composite Timber mining speed cache key incorporating all data dependencies:
+     * Dimension, block position, player UUID, Timber enchantment level, and sneak (Shift) state.
+     */
+    public record TimberSpeedKey(
+            Object dimension,
+            BlockPos pos,
+            UUID playerId,
+            int timberLevel,
+            boolean isShiftKeyDown
+    ) {}
+
+    // [VI] Bộ nhớ đệm tạm thời (2 giây, tối đa 20 mục) ngăn ngừa tụt FPS khi tia đào va chạm liên tục mỗi tick
+    // [EN] Short-lived cache (2 seconds, max 20 entries) preventing FPS drops from continuous per-tick raycast evaluations
+    private static final Cache<TimberSpeedKey, Float> TIMBER_SPEED_CACHE = CacheBuilder.newBuilder()
+            .maximumSize(20)
+            .expireAfterWrite(2, TimeUnit.SECONDS)
             .build();
 
-    // Hàm tiện ích để in Log
+    // [VI] Hàm tiện ích để in log gỡ lỗi / [EN] Utility method for debug logging
     private static void debugLog(String message, Object... args) {
         if (ENABLE_TIMBER_DEBUG_LOGS) {
             LOGGER.info(message, args);
@@ -195,17 +215,59 @@ public class SmallLogicTweaksEvents {
         });
     }
 
+    /**
+     * VI: Tính toán và tra cứu hệ số làm chậm tốc độ đào (sức cản cấu trúc) tương ứng với quy mô của cây gỗ.
+     * EN: Calculates and retrieves the mining speed slowdown factor (structural resistance) relative to tree scale.
+     *
+     * @param player VI: Người chơi đang khai thác / EN: Player mining the block
+     * @param pos    VI: Vị trí khối gỗ mục tiêu / EN: Target log block position
+     * @return       VI: Hệ số làm chậm (1.0f là tốc độ bình thường) / EN: Slowdown factor (1.0f represents vanilla speed)
+     */
     public static float getTimberSpeedFactor(Player player, BlockPos pos) {
-        Level level = player.level();
-
-        // Kiểm tra xem RAM đã tính toán khối này trong vòng 2 giây qua chưa
-        Float cachedFactor = TIMBER_SPEED_CACHE.getIfPresent(pos);
-        if (cachedFactor != null) {
-            return cachedFactor; // Trả về ngay lập tức, FPS không bị tụt
+        // [VI] Kiểm tra nhanh điều kiện cơ bản: Nếu tính năng tắt, người chơi cúi người, hoặc không phải khối gỗ -> Trả về 1.0f ngay
+        // [EN] Fast-path pre-checks: If tweak is disabled, player is sneaking, or not a log -> Return 1.0f immediately
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_TIMBER_TWEAK || player.isShiftKeyDown()) {
+            return 1.0f;
         }
 
-        // Nếu chưa có, tiến hành thuật toán quét BFS
+        Level level = player.level();
+        if (!level.getBlockState(pos).is(BlockTags.LOGS)) {
+            return 1.0f;
+        }
+
         ItemStack axe = player.getMainHandItem();
+        int levelEnchant = 0;
+        try {
+            var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+            var timberHolder = registry.get(Timber.TIMBER);
+            if (timberHolder.isPresent()) {
+                levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(timberHolder.get(), axe);
+            }
+        } catch (Exception ignored) {}
+
+        // [VI] Nếu công cụ không có phù phép Timber -> Không áp dụng hình phạt đào chậm, bỏ qua cache
+        // [EN] If tool lacks Timber enchantment -> No slowdown penalty applies, bypass cache entirely
+        if (levelEnchant <= 0) {
+            return 1.0f;
+        }
+
+        // [VI] Tạo khóa cache đầy đủ ngữ cảnh để ngăn chặn việc người chơi khác nhau dùng chung cache
+        // [EN] Create fully-qualified composite key preventing cross-player or cross-tool cache pollution
+        TimberSpeedKey key = new TimberSpeedKey(
+                level.dimension(),
+                pos.immutable(),
+                player.getUUID(),
+                levelEnchant,
+                player.isShiftKeyDown()
+        );
+
+        Float cachedFactor = TIMBER_SPEED_CACHE.getIfPresent(key);
+        if (cachedFactor != null) {
+            return cachedFactor;
+        }
+
+        // [VI] Tiến hành thuật toán quét BFS nếu chưa có trong RAM
+        // [EN] Execute BFS structure scan if not present in memory cache
         var result = analyzeTimber(level, player, pos, axe);
 
         float newFactor = 1.0f;
@@ -219,8 +281,9 @@ public class SmallLogicTweaksEvents {
             newFactor = result.logs().size() * multiplier;
         }
 
-        // Lưu kết quả vào Cache để dùng cho các tick tiếp theo
-        TIMBER_SPEED_CACHE.put(pos, newFactor);
+        // [VI] Lưu kết quả phân tích vào cache với khóa đầy đủ
+        // [EN] Store analysis result in cache with full composite key
+        TIMBER_SPEED_CACHE.put(key, newFactor);
 
         return newFactor;
     }
