@@ -111,7 +111,13 @@ try {
         Write-Host " Verifying branch: $branch" -ForegroundColor Yellow
         Write-Host "--------------------------------------------------" -ForegroundColor Yellow
         
-        # 1.1 Checkout branch
+        # 1.1 Stop Daemons & kill stray java to release file locks BEFORE git checkout
+        Write-Host "Releasing file locks and stopping Gradle Daemons before switching to $branch..." -ForegroundColor Cyan
+        .\gradlew --stop
+        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        
+        # 1.2 Checkout branch
         Write-Host "Checking out $branch..." -ForegroundColor Cyan
         git checkout $branch
         if ($LASTEXITCODE -ne 0) {
@@ -123,12 +129,6 @@ try {
             Write-Host "Failed to checkout branch $branch!" -ForegroundColor Red
             continue
         }
-        
-        # 1.2 Stop Daemons & kill stray java to avoid lock issues
-        Write-Host "Stopping Gradle Daemons to prevent file locks..." -ForegroundColor Cyan
-        .\gradlew --stop
-        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
-        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
         
         # 1.3 Validate version alignment
         $meta = Get-ModMetadata -targetBranch $branch
@@ -242,6 +242,13 @@ try {
         Write-Host " Deploying branch: $branch" -ForegroundColor Yellow
         Write-Host "--------------------------------------------------" -ForegroundColor Yellow
         
+        # 2.1 Release file locks before switching branch
+        Write-Host "Releasing file locks and stopping Gradle Daemons before switching to $branch..." -ForegroundColor Cyan
+        .\gradlew --stop
+        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        
+        # 2.2 Checkout branch
         git checkout $branch
         $meta = Get-ModMetadata -targetBranch $branch
         $modVer = $meta.ModVersion
@@ -289,6 +296,11 @@ try {
     }
 }
 finally {
+    # Release file locks before restoring original branch
+    .\gradlew --stop
+    Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+    
     # Restore original branch
     Write-Host "`nRestoring original branch: $originalBranch..." -ForegroundColor Cyan
     git checkout $originalBranch

@@ -14,6 +14,12 @@ try {
         Write-Host " Verifying branch: $branch" -ForegroundColor Yellow
         Write-Host "===============================================" -ForegroundColor Yellow
         
+        # Stop Gradle daemons to prevent file locks before checkout
+        Write-Host "Releasing file locks and stopping Gradle Daemons before switching to $branch..." -ForegroundColor Cyan
+        .\gradlew --stop
+        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        
         # Checkout branch
         Write-Host "Checking out $branch..." -ForegroundColor Cyan
         git checkout $branch
@@ -21,11 +27,6 @@ try {
             $results[$branch] = "Failed (git checkout)"
             continue
         }
-        
-        # Stop Gradle daemons to prevent file locks
-        .\gradlew --stop
-        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
-        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
         
         # 0. Verify Changelog & Version Info
         Write-Host "Running verifyChangelog..." -ForegroundColor Cyan
@@ -63,6 +64,11 @@ try {
     }
 }
 finally {
+    # Release file locks before restoring original branch
+    .\gradlew --stop
+    Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+    
     # Restore original branch
     Write-Host "`nRestoring original branch: $originalBranch..." -ForegroundColor Cyan
     git checkout $originalBranch
