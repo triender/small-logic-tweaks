@@ -28,15 +28,25 @@ bin/
 
 *.DS_Store
 
-# fabric
-
+# fabric & run environments
 run/
 run_server/
 logs/
 run-gametest/
-# java
 
+# temporary and build artifacts
+*.tmp
+build/
+out/
+classes/
+.externalNativeBuild/
+dependency-reduced-pom.xml
+
+# java crash logs & heap dumps
 hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# agents configuration and state
+.agents/

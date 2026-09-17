@@ -1,5 +1,5 @@
 # verify_branches.ps1
-# Automates the verification process (compilation, JUnit tests, and GameTests) for Minecraft mod versions 26.1.2 and 26.2
+# Automates the verification process (compilation, JUnit tests, GameTests, and changelog) for Minecraft mod versions 26.1.2, 26.2, and 26.3
 
 $branches = @("26.1.2", "26.2", "26.3")
 $results = [ordered]@{}
@@ -22,9 +22,22 @@ try {
             continue
         }
         
+        # Stop Gradle daemons to prevent file locks
+        .\gradlew --stop
+        Stop-Process -Name java -Force -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+        
+        # 0. Verify Changelog & Version Info
+        Write-Host "Running verifyChangelog..." -ForegroundColor Cyan
+        .\gradlew verifyChangelog --no-daemon
+        if ($LASTEXITCODE -ne 0) {
+            $results[$branch] = "Failed (Changelog)"
+            continue
+        }
+        
         # 1. Compile
         Write-Host "Running compileJava..." -ForegroundColor Cyan
-        .\gradlew clean compileJava
+        .\gradlew clean compileJava --no-daemon
         if ($LASTEXITCODE -ne 0) {
             $results[$branch] = "Failed (Compilation)"
             continue
@@ -32,7 +45,7 @@ try {
         
         # 2. JUnit
         Write-Host "Running JUnit tests..." -ForegroundColor Cyan
-        .\gradlew cleanTest test
+        .\gradlew cleanTest test --no-daemon
         if ($LASTEXITCODE -ne 0) {
             $results[$branch] = "Failed (JUnit Tests)"
             continue
@@ -40,7 +53,7 @@ try {
         
         # 3. GameTests
         Write-Host "Running GameTest server..." -ForegroundColor Cyan
-        .\gradlew runGameTestServer
+        .\gradlew runGameTestServer --no-daemon
         if ($LASTEXITCODE -ne 0) {
             $results[$branch] = "Failed (GameTests)"
             continue

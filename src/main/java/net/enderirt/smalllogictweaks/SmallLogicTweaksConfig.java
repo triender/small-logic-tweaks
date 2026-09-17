@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import net.enderirt.smalllogictweaks.core.config.BaseModConfig;
 import net.enderirt.smalllogictweaks.core.config.ConfigEntry;
 import net.enderirt.smalllogictweaks.core.error.SltError;
-import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -215,11 +214,16 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     // Cấu hình RAM: Thực thể trực tiếp quyết định luật chơi trong thời gian thực
     public static volatile SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
 
-    // Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
+    // [VI] Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
+    // [EN] Initialize Gson builder with Pretty Printing for readable indented JSON formatting
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    /**
+     * VI: Lấy tệp cấu hình thông qua dịch vụ trừu tượng hóa nền tảng (độc lập hoàn toàn với Fabric/NeoForge/Forge).
+     * EN: Resolves configuration file via platform abstraction service (fully independent of Fabric/NeoForge/Forge).
+     */
     private static File getConfigFile() {
-        return new File(FabricLoader.getInstance().getConfigDir().toFile(), "small_logic_tweaks.json");
+        return new File(net.enderirt.smalllogictweaks.core.platform.Services.PLATFORM.getConfigDirectory().toFile(), "small_logic_tweaks.json");
     }
 
     public static void load() {
@@ -259,26 +263,39 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
         }
     }
 
+    /**
+     * VI: Cơ chế phòng vệ biên cấu hình (Defensive Bounds Enforcement): Tự động chuẩn hóa và vô hiệu hóa tính năng cục bộ
+     * nếu thông số nhận từ máy chủ vượt ra ngoài ngưỡng an toàn cho phép.
+     * EN: Defensive configuration bounds enforcement: Automatically sanitizes and disables features locally
+     * if parameters received from the server exceed safe allowable boundaries.
+     *
+     * @param rawReceived VI: Cấu hình thô chưa qua chuẩn hóa nhận từ mạng / EN: Raw unvalidated configuration received from network
+     * @return            VI: True nếu phát hiện thông số vượt biên cần can thiệp / EN: True if out-of-bounds parameters were detected and mitigated
+     */
     public boolean fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
         if (rawReceived == null) return false;
-        boolean tampered = false;
+        boolean outOfBoundsDetected = false;
 
-        // 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
+        // [VI] 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
+        // [EN] 1. Run validation to clamp values within acceptable bounds
         this.validate();
 
-        // 2. Kiểm tra chéo: Tính năng TIMBER
+        // [VI] 2. Kiểm tra chéo phân hệ TIMBER: Nếu giá trị bị validate() ép thay đổi -> Đã có thông số vượt biên
+        // [EN] 2. Cross-check TIMBER subsystem: If values were mutated by validate(), out-of-bounds inputs were received
         if (this.MAX_LOG_HORIZONTAL_RADIUS != rawReceived.MAX_LOG_HORIZONTAL_RADIUS ||
                 this.MAX_LEAF_DISTANCE != rawReceived.MAX_LEAF_DISTANCE ||
                 this.MIN_LEAVES_FOR_TREE != rawReceived.MIN_LEAVES_FOR_TREE ||
                 this.DECAY_THRESHOLD != rawReceived.DECAY_THRESHOLD) {
 
-            // Cấu hình Timber bị hỏng/độc hại -> Tắt hoàn toàn ở Client
+            // [VI] Cấu hình Timber vượt biên an toàn -> Tắt cục bộ ở Client để phòng ngừa lag/crash
+            // [EN] Timber config out-of-bounds -> Disable locally on client to prevent lag/crashes
             this.ENABLE_TIMBER_TWEAK = false;
-            tampered = true;
-            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "TIMBER");
+            outOfBoundsDetected = true;
+            SltError.NET_OUT_OF_BOUNDS_PAYLOAD.logWarn(LOGGER, "TIMBER");
         }
 
-        // 3. Kiểm tra chéo: Tính năng PHANTOM
+        // [VI] 3. Kiểm tra chéo phân hệ PHANTOM: Vô hiệu hóa cục bộ nếu thông số sinh quái vượt biên an toàn
+        // [EN] 3. Cross-check PHANTOM subsystem: Disable locally if spawn parameters exceed safety limits
         if (this.PHANTOM_MOB_CAP != rawReceived.PHANTOM_MOB_CAP ||
                 this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT ||
                 this.PHANTOM_MAX_COUNT != rawReceived.PHANTOM_MAX_COUNT ||
@@ -289,10 +306,10 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
                 this.PHANTOM_MAX_SPAWN_HEIGHT != rawReceived.PHANTOM_MAX_SPAWN_HEIGHT) {
 
             this.ENABLE_END_PHANTOM = false;
-            tampered = true;
-            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "PHANTOM");
+            outOfBoundsDetected = true;
+            SltError.NET_OUT_OF_BOUNDS_PAYLOAD.logWarn(LOGGER, "PHANTOM");
         }
 
-        return tampered;
+        return outOfBoundsDetected;
     }
 }
