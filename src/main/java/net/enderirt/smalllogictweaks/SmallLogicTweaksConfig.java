@@ -166,6 +166,20 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     @ConfigEntry(comment = "Allow boiling raw food in cauldrons with heat source underneath.")
     public boolean ENABLE_CAULDRON_BOILING = true;
 
+    // ==========================================
+    // --- ANVIL PRESERVED CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_ANVIL_PRESERVED;
+    @ConfigEntry(comment = "Preserve repair cost on anvil. Durability repair and renaming do not increase prior work penalty; only upgrades/new enchantments increase penalty.")
+    public boolean ENABLE_ANVIL_PRESERVED = true;
+
+    // ==========================================
+    // --- WEIGHTLESS MOBS CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_WEIGHTLESS_MOBS;
+    @ConfigEntry(comment = "Prevent delicate/floating mobs (bees, allays, phantoms, ghasts) from breaking turtle eggs (MC-248332).")
+    public boolean ENABLE_WEIGHTLESS_MOBS = true;
+
     public String _comment_DEFAULT_COOK_TIME;
     @ConfigEntry(comment = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.", minInt = 1, maxInt = 72000, defaultInt = 240)
     public int DEFAULT_COOK_TIME = 240;

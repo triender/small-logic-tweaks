@@ -1,5 +1,20 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+### ✨ Added
+
+**🔨 Anvil preserved:**
+* **Preserve repair cost:** Repairing tool durability with raw materials or like-items and renaming tools no longer increase the Prior Work Penalty (`RepairCost`).
+* **Progression-only penalty scaling:** Only applying new enchantments or upgrading existing enchantment tiers will increment the anvil penalty cost.
+* **Configurable:** Added `ENABLE_ANVIL_PRESERVED` toggle in the configuration file (default: `true`).
+
+**🐢 Weightless mobs (MC-248332):**
+* **Delicate footsteps:** Floating, winged, and ethereal creatures (bats, bees, allays, phantoms, ghasts, parrots, vexes) no longer trample and destroy turtle eggs when flying or landing on them.
+* **Data-driven entity tag:** Introduced `#small_logic_tweaks:cannot_break_turtle_eggs` entity type tag to fully customize which delicate mobs are exempt from breaking turtle eggs.
+* **Configurable:** Added `ENABLE_WEIGHTLESS_MOBS` toggle in the configuration file (default: `true`).
+
+### ⚙️ Changed
+* **Distribution JAR optimization:** Excluded internal GameTest classes and DataGenerator files from the production distribution JAR and sources JAR, reducing artifact size by ~20% (from 97.6 KB to 78.6 KB).
+
 ---
 # 🌱 Dirt Reversion & 🍳 Aesthetic Kitchen Update (Version 1.5.0)
 

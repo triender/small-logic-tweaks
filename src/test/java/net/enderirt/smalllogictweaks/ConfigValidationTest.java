@@ -48,4 +48,12 @@ public class ConfigValidationTest {
                 "Comment phải đề cập đến Pickaxe để mô tả đúng tính năng");
     }
 
+    @Test
+    public void testAnvilAndWeightlessMobsDefaultValue() {
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+        Assertions.assertTrue(config.ENABLE_ANVIL_PRESERVED,
+                "ENABLE_ANVIL_PRESERVED phải bật theo mặc định (true)");
+        Assertions.assertTrue(config.ENABLE_WEIGHTLESS_MOBS,
+                "ENABLE_WEIGHTLESS_MOBS phải bật theo mặc định (true)");
+    }
 }

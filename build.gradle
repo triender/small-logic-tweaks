@@ -72,6 +72,16 @@ jar {
 	from("LICENSE") {
 		rename { "${it}_$projectName"}
 	}
+
+	// [VI] Loại trừ các lớp kiểm thử tự động GameTest và bộ sinh dữ liệu DataGen khỏi bản phân phối chính thức
+	// [EN] Exclude internal GameTest classes and DataGen from the production distribution JAR
+	exclude "net/enderirt/smalllogictweaks/gametest/**"
+	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
+}
+
+sourcesJar {
+	exclude "net/enderirt/smalllogictweaks/gametest/**"
+	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
 }
 
 // configure the maven publication

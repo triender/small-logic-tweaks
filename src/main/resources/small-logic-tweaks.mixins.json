@@ -7,7 +7,9 @@
 		"ThrownPotionMixin",
 		"ServerPlayerMixin",
 		"ItemEntityMixin",
-		"ItemEntityMergeMixin"
+		"ItemEntityMergeMixin",
+		"TurtleEggBlockMixin",
+		"AnvilMenuMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
