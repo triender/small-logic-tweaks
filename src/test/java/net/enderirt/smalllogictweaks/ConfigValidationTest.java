@@ -24,4 +24,36 @@ public class ConfigValidationTest {
         Assertions.assertEquals(5, testConfig.MAX_LOG_HORIZONTAL_RADIUS,
                 "Hệ thống phải giới hạn bán kính quét gỗ tối đa là 5");
     }
+
+    @Test
+    public void testPickaxeDirtReversionDefaultValue() {
+        // Xác minh giá trị mặc định là true (bật theo mặc định)
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+        Assertions.assertTrue(config.ENABLE_PICKAXE_DIRT_REVERSION,
+                "ENABLE_PICKAXE_DIRT_REVERSION phải bật theo mặc định (true)");
+    }
+
+    @Test
+    public void testPickaxeDirtReversionCommentRestoredByValidate() {
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+        // Cố ý xóa comment (mô phỏng file JSON bị hỏng hoặc thiếu trường comment)
+        config._comment_ENABLE_PICKAXE_DIRT_REVERSION = null;
+
+        // validate() phải khôi phục lại comment đúng chuẩn
+        config.validate();
+
+        Assertions.assertNotNull(config._comment_ENABLE_PICKAXE_DIRT_REVERSION,
+                "validate() phải tự phục hồi comment của ENABLE_PICKAXE_DIRT_REVERSION");
+        Assertions.assertTrue(config._comment_ENABLE_PICKAXE_DIRT_REVERSION.contains("Pickaxe"),
+                "Comment phải đề cập đến Pickaxe để mô tả đúng tính năng");
+    }
+
+    @Test
+    public void testAnvilAndWeightlessMobsDefaultValue() {
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+        Assertions.assertTrue(config.ENABLE_ANVIL_PRESERVED,
+                "ENABLE_ANVIL_PRESERVED phải bật theo mặc định (true)");
+        Assertions.assertTrue(config.ENABLE_WEIGHTLESS_MOBS,
+                "ENABLE_WEIGHTLESS_MOBS phải bật theo mặc định (true)");
+    }
 }

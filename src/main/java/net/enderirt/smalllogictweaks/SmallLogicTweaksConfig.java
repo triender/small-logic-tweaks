@@ -5,11 +5,11 @@ import com.google.gson.GsonBuilder;
 import net.enderirt.smalllogictweaks.core.config.BaseModConfig;
 import net.enderirt.smalllogictweaks.core.config.ConfigEntry;
 import net.enderirt.smalllogictweaks.core.error.SltError;
-import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.Map;
 
 public class SmallLogicTweaksConfig extends BaseModConfig {
     // Khởi tạo Logger riêng cho phân hệ cấu hình để dễ dàng lọc log khi debug
@@ -89,6 +89,7 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     public String _comment_ENABLE_POISONOUS_POTATO_COMPOST;
     @ConfigEntry(comment = "Enable using Poisonous potato with Composter")
     public boolean ENABLE_POISONOUS_POTATO_COMPOST = true;
+
     public String _comment_ENABLE_POISONOUS_POTATO_BREWING;
     @ConfigEntry(comment = "Enable using Poisonous potato to make potion of poison")
     public boolean ENABLE_POISONOUS_POTATO_BREWING = true;
@@ -99,15 +100,23 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     public String _comment_ENABLE_HYDRO_HARDENING;
     @ConfigEntry(comment = "Enable using Water Bottles to instantly harden Concrete Powder.")
     public boolean ENABLE_HYDRO_HARDENING = true;
+
     public String _comment_ENABLE_SPLASH_HARDENING;
     @ConfigEntry(comment = "Enable thrown splash water bottles to harden concrete powder in a 3x3x3 area.")
     public boolean ENABLE_SPLASH_HARDENING = true;
 
     // ==========================================
+    // --- PICKAXE DIRT REVERSION CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_PICKAXE_DIRT_REVERSION;
+    @ConfigEntry(comment = "Enable right-clicking Farmland or Dirt Path with a Pickaxe to revert it into normal Dirt.")
+    public boolean ENABLE_PICKAXE_DIRT_REVERSION = true;
+
+    // ==========================================
     // --- PHANTOM TWEAK CONFIGURATION ---
     // ==========================================
     public String _comment_ENABLE_END_PHANTOM;
-    @ConfigEntry(comment = "Enable or disable custom Phantom spawning logic in The End dimension.")
+    @ConfigEntry(comment = "Enable spawn phantom in the end instead of Overworld")
     public boolean ENABLE_END_PHANTOM = true;
 
     public String _comment_PHANTOM_SPAWN_CHECK_INTERVAL;
@@ -141,7 +150,71 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     public String _comment_PHANTOM_MOB_CAP;
     @ConfigEntry(comment = "The maximum number of Phantoms that can exist at one time. [Default: 8]", minInt = 1, maxInt = 100, defaultInt = 8)
     public int PHANTOM_MOB_CAP = 8;
+
     // ==========================================
+    // --- AESTHETIC KITCHEN TWEAK CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_AESTHETIC_KITCHEN;
+    @ConfigEntry(comment = "Master switch for the Aesthetic Kitchen system.")
+    public boolean ENABLE_AESTHETIC_KITCHEN = true;
+
+    public String _comment_ENABLE_DRY_ROASTING;
+    @ConfigEntry(comment = "Allow roasting raw food on covered stoves (magma, fire, lava).")
+    public boolean ENABLE_DRY_ROASTING = true;
+
+    public String _comment_ENABLE_CAULDRON_BOILING;
+    @ConfigEntry(comment = "Allow boiling raw food in cauldrons with heat source underneath.")
+    public boolean ENABLE_CAULDRON_BOILING = true;
+
+    // ==========================================
+    // --- ANVIL PRESERVED CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_ANVIL_PRESERVED;
+    @ConfigEntry(comment = "Preserve repair cost on anvil. Durability repair and renaming do not increase prior work penalty; only upgrades/new enchantments increase penalty.")
+    public boolean ENABLE_ANVIL_PRESERVED = true;
+
+    // ==========================================
+    // --- WEIGHTLESS MOBS CONFIGURATION ---
+    // ==========================================
+    public String _comment_ENABLE_WEIGHTLESS_MOBS;
+    @ConfigEntry(comment = "Prevent delicate/floating mobs (bees, allays, phantoms, ghasts) from breaking turtle eggs (MC-248332).")
+    public boolean ENABLE_WEIGHTLESS_MOBS = true;
+
+    public String _comment_DEFAULT_COOK_TIME;
+    @ConfigEntry(comment = "Default cooking time (in ticks) for items in the magma_cookable tag that are not explicitly defined in magmaCookTimes.", minInt = 1, maxInt = 72000, defaultInt = 240)
+    public int DEFAULT_COOK_TIME = 240;
+
+    public String _comment_magmaCookTimes;
+    @ConfigEntry(comment = "Custom cooking times (in ticks) for raw foods cooked on heat sources.")
+    public Map<String, Integer> magmaCookTimes = new java.util.LinkedHashMap<>();
+    {
+        magmaCookTimes.put("minecraft:kelp", 120);
+        magmaCookTimes.put("minecraft:potato", 240);
+        magmaCookTimes.put("minecraft:cod", 240);
+        magmaCookTimes.put("minecraft:salmon", 240);
+        magmaCookTimes.put("minecraft:beef", 360);
+        magmaCookTimes.put("minecraft:porkchop", 360);
+        magmaCookTimes.put("minecraft:chicken", 360);
+        magmaCookTimes.put("minecraft:mutton", 360);
+        magmaCookTimes.put("minecraft:rabbit", 360);
+    }
+
+    public String _comment_aestheticCookResults;
+    @ConfigEntry(comment = "Custom cooking results mapping (raw item ID -> cooked item ID) for Aesthetic Kitchen.")
+    public Map<String, String> aestheticCookResults = new java.util.LinkedHashMap<>();
+
+    public int getCookTime(net.minecraft.world.item.Item item) {
+        String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+        if (this.magmaCookTimes != null && this.magmaCookTimes.containsKey(key)) {
+            return this.magmaCookTimes.get(key);
+        }
+        return this.DEFAULT_COOK_TIME;
+    }
+
+    public static net.minecraft.world.item.ItemStack getCookedResult(net.minecraft.world.level.Level level, net.minecraft.world.item.ItemStack rawStack) {
+        return net.enderirt.smalllogictweaks.util.KitchenHelper.getCookedResult(level, rawStack);
+    }
+
     // ==========================================
     // --- SYSTEM CORE CONFIGURATION MANAGEMENT ---
     // ==========================================
@@ -150,16 +223,21 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
     }
 
     // Cấu hình vật lý: Chỉ dùng để lưu/đọc file trên ổ cứng cục bộ
-    public static SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
+    public static volatile SmallLogicTweaksConfig LOCAL_INSTANCE = new SmallLogicTweaksConfig();
 
     // Cấu hình RAM: Thực thể trực tiếp quyết định luật chơi trong thời gian thực
-    public static SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
+    public static volatile SmallLogicTweaksConfig ACTIVE_INSTANCE = new SmallLogicTweaksConfig();
 
-    // Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
+    // [VI] Khởi tạo bộ dựng Gson với tính năng Pretty Printing để tệp JSON tự động xuống dòng thụt lề đẹp mắt
+    // [EN] Initialize Gson builder with Pretty Printing for readable indented JSON formatting
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    /**
+     * VI: Lấy tệp cấu hình thông qua dịch vụ trừu tượng hóa nền tảng (độc lập hoàn toàn với Fabric/NeoForge/Forge).
+     * EN: Resolves configuration file via platform abstraction service (fully independent of Fabric/NeoForge/Forge).
+     */
     private static File getConfigFile() {
-        return new File(FabricLoader.getInstance().getConfigDir().toFile(), "small_logic_tweaks.json");
+        return new File(net.enderirt.smalllogictweaks.core.platform.Services.PLATFORM.getConfigDirectory().toFile(), "small_logic_tweaks.json");
     }
 
     public static void load() {
@@ -199,34 +277,53 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
         }
     }
 
-    public void fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
-        // 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
+    /**
+     * VI: Cơ chế phòng vệ biên cấu hình (Defensive Bounds Enforcement): Tự động chuẩn hóa và vô hiệu hóa tính năng cục bộ
+     * nếu thông số nhận từ máy chủ vượt ra ngoài ngưỡng an toàn cho phép.
+     * EN: Defensive configuration bounds enforcement: Automatically sanitizes and disables features locally
+     * if parameters received from the server exceed safe allowable boundaries.
+     *
+     * @param rawReceived VI: Cấu hình thô chưa qua chuẩn hóa nhận từ mạng / EN: Raw unvalidated configuration received from network
+     * @return            VI: True nếu phát hiện thông số vượt biên cần can thiệp / EN: True if out-of-bounds parameters were detected and mitigated
+     */
+    public boolean fallbackFailsafe(SmallLogicTweaksConfig rawReceived) {
+        if (rawReceived == null) return false;
+        boolean outOfBoundsDetected = false;
+
+        // [VI] 1. Chạy bộ lọc chuẩn hóa giá trị hiện tại
+        // [EN] 1. Run validation to clamp values within acceptable bounds
         this.validate();
 
-        // 2. Kiểm tra chéo: Tính năng TIMBER
+        // [VI] 2. Kiểm tra chéo phân hệ TIMBER: Nếu giá trị bị validate() ép thay đổi -> Đã có thông số vượt biên
+        // [EN] 2. Cross-check TIMBER subsystem: If values were mutated by validate(), out-of-bounds inputs were received
         if (this.MAX_LOG_HORIZONTAL_RADIUS != rawReceived.MAX_LOG_HORIZONTAL_RADIUS ||
                 this.MAX_LEAF_DISTANCE != rawReceived.MAX_LEAF_DISTANCE ||
                 this.MIN_LEAVES_FOR_TREE != rawReceived.MIN_LEAVES_FOR_TREE ||
                 this.DECAY_THRESHOLD != rawReceived.DECAY_THRESHOLD) {
 
-            // Cấu hình Timber bị hỏng/độc hại -> Tắt hoàn toàn ở Client
+            // [VI] Cấu hình Timber vượt biên an toàn -> Tắt cục bộ ở Client để phòng ngừa lag/crash
+            // [EN] Timber config out-of-bounds -> Disable locally on client to prevent lag/crashes
             this.ENABLE_TIMBER_TWEAK = false;
-            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "TIMBER");
+            outOfBoundsDetected = true;
+            SltError.NET_OUT_OF_BOUNDS_PAYLOAD.logWarn(LOGGER, "TIMBER");
         }
 
-        // 3. Kiểm tra chéo: Tính năng PHANTOM
+        // [VI] 3. Kiểm tra chéo phân hệ PHANTOM: Vô hiệu hóa cục bộ nếu thông số sinh quái vượt biên an toàn
+        // [EN] 3. Cross-check PHANTOM subsystem: Disable locally if spawn parameters exceed safety limits
         if (this.PHANTOM_MOB_CAP != rawReceived.PHANTOM_MOB_CAP ||
                 this.PHANTOM_MIN_COUNT != rawReceived.PHANTOM_MIN_COUNT ||
                 this.PHANTOM_MAX_COUNT != rawReceived.PHANTOM_MAX_COUNT ||
+                this.PHANTOM_CHECK_COOLDOWN != rawReceived.PHANTOM_CHECK_COOLDOWN ||
+                this.PHANTOM_THRESHOLD_PRE_ELYTRA != rawReceived.PHANTOM_THRESHOLD_PRE_ELYTRA ||
+                this.PHANTOM_THRESHOLD_POST_ELYTRA != rawReceived.PHANTOM_THRESHOLD_POST_ELYTRA ||
                 this.PHANTOM_MIN_SPAWN_HEIGHT != rawReceived.PHANTOM_MIN_SPAWN_HEIGHT ||
-                this.PHANTOM_MAX_SPAWN_HEIGHT != rawReceived.PHANTOM_MAX_SPAWN_HEIGHT ||
-                this.PHANTOM_CHECK_COOLDOWN != rawReceived.PHANTOM_CHECK_COOLDOWN) {
+                this.PHANTOM_MAX_SPAWN_HEIGHT != rawReceived.PHANTOM_MAX_SPAWN_HEIGHT) {
 
             this.ENABLE_END_PHANTOM = false;
-            SltError.NET_TAMPERED_PAYLOAD.logWarn(LOGGER, "PHANTOM");
+            outOfBoundsDetected = true;
+            SltError.NET_OUT_OF_BOUNDS_PAYLOAD.logWarn(LOGGER, "PHANTOM");
         }
 
-        // Lưu ý: Các tính năng Boolean thuần túy (như Bone Meal) không cần failsafe
-        // vì bản thân giá trị true/false không thể bị overflow (tràn bộ nhớ).
+        return outOfBoundsDetected;
     }
 }
