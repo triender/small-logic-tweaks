@@ -218,6 +218,7 @@ def getChangelogText() {
 	for (line in lines) {
 		if (line.startsWith("# ") && (line.contains("Version " + baseVer) || line.contains("Version: " + baseVer))) {
 			foundVersion = true
+			changelogText += line + "\n"
 			continue
 		}
 		if (foundVersion) {
