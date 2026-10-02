@@ -50,3 +50,7 @@ replay_*.log
 
 # agents configuration and state
 .agents/
+
+# internal documentation
+DESIGN.md
+ISSUES.md
