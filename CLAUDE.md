@@ -10,11 +10,12 @@ Small Logic Tweaks is a Fabric mod for Minecraft ("Vanilla+" style) that fixes s
 
 This repo ships parallel versions for different Minecraft releases as **separate long-lived branches**, not a single mainline:
 
-- `main` — general/default branch
-- `26.2` — targets Minecraft 26.2 (current checkout)
+- `main` — general/default branch (receives merges from the newest version branch)
+- `26.3` — targets Minecraft 26.3 (newest; the control branch that owns `scripts/`)
+- `26.2` — targets Minecraft 26.2
 - `26.1.2` — targets Minecraft 26.1.2
 
-The same logical fix or feature is typically ported to both `26.2` and `26.1.2`. `verify_branches.ps1` and `deploy_branches.ps1` both iterate over `@("26.1.2", "26.2")`, checking out each branch to compile, test, and (for deploy) publish to Modrinth. When making a change that isn't purely version-specific, check whether it needs to be cherry-picked/replicated to the sibling branch. `gradle.properties` on each branch pins `minecraft_version`/`mod_version` for that branch (currently `26.2` / `1.4.1-mc26.2`).
+The same logical fix or feature is typically ported to every supported version branch. When making a change that isn't purely version-specific, check whether it needs to be cherry-picked/replicated to the sibling branches. `gradle.properties` on each branch pins `minecraft_version`/`mod_version` for that branch (`mod_version` must end with `-mc<minecraft_version>`, and the branch name must equal `minecraft_version`). `build.gradle` is kept identical across version branches; change it on the newest branch and sync it to the others.
 
 ## Build & test commands
 
@@ -32,7 +33,7 @@ Gradle wrapper (Fabric Loom) drives everything; run from repo root:
 
 Run a single JUnit test class: `./gradlew test --tests "net.enderirt.smalllogictweaks.ConfigValidationTest"`.
 
-`verify_branches.ps1` runs `clean compileJava` → `cleanTest test` → `runGameTestServer` across both `26.1.2` and `26.2`, restoring the original branch afterward — the closest thing to a full CI check; prefer it when validating cross-version changes. `deploy_branches.ps1` does the same plus Modrinth publishing and git push (requires `MODRINTH_TOKEN` and a clean working tree) — this is a release action, not a dev command.
+Cross-version verification and releases go through `scripts/deploy.ps1`, which lives only on the newest version branch (currently `26.3`) and builds every other branch in its own git worktree under `%LOCALAPPDATA%\small-logic-tweaks-deploy` (the current checkout is never switched; only committed code is built). What gets verified/released is decided solely by `scripts/deploy_config.json`: `branches[]` (all are verified), `branches[].deploy` (released this run), `branches[].loaders` (Modrinth loader tags; `"quilt"` adds a Quilt server boot test using `quilt_test_loader`), and `platforms.modrinth/github/git_push`. `.\scripts\deploy.ps1 -DryRun` is the full cross-version check (changelog, clean compile, JUnit, GameTest, packaging) plus a release preview — prefer it when validating cross-version changes. Without `-DryRun` it is a release action (needs `MODRINTH_TOKEN`/`GITHUB_TOKEN` for the enabled platforms), not a dev command. The script reads version/type/changelog from the `exportReleaseInfo` Gradle task (`build/release/info.json`) and passes `modrinthProjectId`/`modrinthLoaders` to `build.gradle` as project properties.
 
 ## Architecture
 
