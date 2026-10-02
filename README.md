@@ -85,13 +85,35 @@ Dimension-aware Phantom ecology.
 - Phantoms no longer disturb Overworld builders; they exclusively spawn in **The End** dimension
 - dynamic insomnia scaling based on whether the player has acquired an Elytra
 
+### Poisonous Potato Integration
+
+Organic loop integration for otherwise dead-end agricultural waste.
+
+- compost Poisonous Potatoes in the Composter at the standard 65% success rate
+- brew with an Awkward Potion in the Brewing Stand to create Potion of Poison
+
+### Anvil: Memory Preserve
+
+Separating routine maintenance from magical progression.
+
+- repairing tool durability with raw materials or like-items no longer increases Prior Work Penalty (`RepairCost`)
+- renaming tools no longer increases `RepairCost`
+- only applying new enchantments or upgrading enchantment tiers scales penalty cost
+
+### Weightless Creatures (MC-248332)
+
+Delicate footsteps for hovering and ethereal companions.
+
+- floating, winged, and ethereal creatures (bees, allays, phantoms, ghasts, parrots, vexes) no longer trample or destroy Turtle Eggs
+- fully customizable via the `#small_logic_tweaks:cannot_break_turtle_eggs` entity type tag
+
 ## Design Philosophy
 
 Core principle:
 
 > Improve interaction flow without removing gameplay effort.
 
-Interested in the architectural psychology and player behavior behind these changes? Read our full design treatise in [DESIGN.md](DESIGN.md).
+Small Logic Tweaks focuses strictly on repairing local mechanical contradictions with minimal semantic surface area, preserving Vanilla pacing and natural player intent.
 
 Implementation constraints:
 - manual systems over automation
@@ -119,21 +141,9 @@ The following concepts are being explored and may release in any order.
 - improved decorative workflow support
 - potential future Fletching Table integration
 
-### Sniffer: Archaeological Flora
-- Sniffers can occasionally uncover mod-specific rare botanical relic items/seeds
-
-### Anvil: Structural Penalty
-- durability repairs no longer increase `RepairCost`
-- renaming no longer increases `RepairCost`
-- enchantment upgrades still scale long-term cost
-
-### Allay: Music & Memory
-- freed Allays (e.g., released from captivity structures) persist the UUID of the first releasing/interacting player as their bond reference
-- music interactions can register a persistent anchor location for nearby Allays
-- duplicated Allays require new bonding
-
-### Weightless Creatures
-- lightweight hovering mobs no longer break Turtle Eggs
+### Acoustic Glass
+- dampens sound and vibrations passing through while remaining visually transparent
+- high-tier redstone utility using Echo Shards to eliminate bulky wool encasements
 
 ## Feedback & Contributions
 
