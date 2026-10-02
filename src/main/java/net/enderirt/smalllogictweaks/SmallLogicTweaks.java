@@ -1,11 +1,11 @@
 package net.enderirt.smalllogictweaks;
 
+import net.enderirt.smalllogictweaks.core.platform.Services;
 import net.enderirt.smalllogictweaks.network.ConfigSyncPayload;
 import net.fabricmc.api.ModInitializer;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 
 import com.google.gson.Gson;
 import org.slf4j.Logger;
@@ -28,8 +28,8 @@ public class SmallLogicTweaks implements ModInitializer {
 			// Đóng gói cấu hình cục bộ của Server
 			String serverConfigJson = SmallLogicTweaksConfig.GSON.toJson(SmallLogicTweaksConfig.LOCAL_INSTANCE);
 
-			// Gửi xuống Client bằng field handler.player (không có ngoặc đơn)
-			ServerPlayNetworking.send(handler.player, new ConfigSyncPayload(serverConfigJson));
+			// Gửi xuống Client qua abstraction SPI
+			Services.NETWORK.sendToPlayer(handler.player, new ConfigSyncPayload(serverConfigJson));
 		});
 		// 1. Luôn tải cấu hình đầu tiên
 		SmallLogicTweaksConfig.load();

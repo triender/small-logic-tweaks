@@ -17,6 +17,12 @@ public final class Services {
      */
     public static final IPlatformHelper PLATFORM = load(IPlatformHelper.class);
 
+    /**
+     * VI: Thể hiện dịch vụ mạng đang hoạt động.
+     * EN: Active network service instance.
+     */
+    public static final INetworkHelper NETWORK = load(INetworkHelper.class);
+
     public static <T> T load(Class<T> clazz) {
         return ServiceLoader.load(clazz)
                 .findFirst()
@@ -34,6 +40,11 @@ public final class Services {
                                 return false;
                             }
                         };
+                        return fallback;
+                    }
+                    if (clazz == INetworkHelper.class) {
+                        @SuppressWarnings("unchecked")
+                        T fallback = (T) (INetworkHelper) (player, payload) -> {};
                         return fallback;
                     }
                     throw new NullPointerException("Failed to load service for " + clazz.getName());

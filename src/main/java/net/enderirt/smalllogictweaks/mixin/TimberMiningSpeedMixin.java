@@ -1,6 +1,6 @@
 package net.enderirt.smalllogictweaks.mixin;
 
-import net.enderirt.smalllogictweaks.SmallLogicTweaksEvents;
+import net.enderirt.smalllogictweaks.handler.TimberHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
@@ -26,7 +26,7 @@ public abstract class TimberMiningSpeedMixin {
             return;
         }
 
-        float structuralResistance = SmallLogicTweaksEvents.getTimberSpeedFactor(player, pos);
+        float structuralResistance = TimberHandler.getTimberSpeedFactor(player, pos);
 
         if (structuralResistance > 1.0F) {
             // Cập nhật tiến trình theo thời gian thực (Delta) dựa trên sức cản cấu trúc

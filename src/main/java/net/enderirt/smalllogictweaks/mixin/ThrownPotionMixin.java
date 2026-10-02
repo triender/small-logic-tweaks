@@ -1,7 +1,7 @@
 package net.enderirt.smalllogictweaks.mixin;
 
 import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
-import net.enderirt.smalllogictweaks.SmallLogicTweaksEvents;
+import net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
 import net.minecraft.world.item.alchemy.Potions;
@@ -53,7 +53,7 @@ public abstract class ThrownPotionMixin {
                 maxZ = Math.min(maxZ, directHitPos.getZ() + 1);
 
                 // Ưu tiên hóa cứng 100% khối bị ném trúng trực tiếp
-                SmallLogicTweaksEvents.tryHardenConcrete(world, directHitPos);
+                ConcreteHardeningHandler.tryHardenConcrete(world, directHitPos);
             }
 
             float spreadChance = 0.4f;
@@ -65,7 +65,7 @@ public abstract class ThrownPotionMixin {
                 // Bỏ qua khối tâm điểm đã xử lý, tiến hành roll xác suất cho các khối còn lại
                 if (directHitPos == null || !pos.equals(directHitPos)) {
                     if (random.nextFloat() < spreadChance) {
-                        SmallLogicTweaksEvents.tryHardenConcrete(world, pos);
+                        ConcreteHardeningHandler.tryHardenConcrete(world, pos);
                     }
                 }
             }

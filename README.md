@@ -124,9 +124,29 @@ Tool identity is intentional:
 - **Efficiency** for precision building/mining
 - **Timber** for forestry-scale harvesting
 
+## Installation & Environment Compatibility
+
+| Feature | Environment | Datapack compatible | Description |
+| :--- | :--- | :---: | :--- |
+| **Charcoal / Coal -> Black dye** | Server-only | Yes | Vanilla data-driven recipe JSON. |
+| **Jungle leaf rebalancing** | Server-only | Yes | Vanilla loot table JSON. |
+| **Poisonous potato brewing** | Server-only | Yes | Vanilla data-driven brewing recipe (26.3+). |
+| **Poisonous potato composting** | Server-only | Partial | Handled server-side on composter interactions. |
+| **Weightless creatures** | Server-only | Tag-driven | Server handles egg trampling via entity tags. |
+| **Pickaxe soil reversion** | Server-only | No | Server converts blocks and decrements durability. |
+| **Bone meal soil regeneration** | Server-only | No | Server converts dirt and triggers native particles. |
+| **Hydro-hardening** | Server-only | No | Server transforms concrete powder on hydration. |
+| **Aesthetic kitchen cooking** | Server-only | No | Physics-based cooking entirely tracked on the server. |
+| **Void insomnia (The End)** | Server-only | No | Server tracks insomnia timer and phantom spawning. |
+| **Anvil: Memory preserve** | Client & server | No | Recommended on client for seamless level UI sync. |
+| **Timber** | Client & server | No | Required on client to sync progressive mining fatigue. |
+
+> [!NOTE]
+> Server-only features allow players with pure vanilla Minecraft clients to join and enjoy the tweaks without installing any client mods.
+
 ## Compatibility
 
-- Platform target: **Fabric**
+- Platform target: **Fabric** (100% compatible with Quilt; NeoForge support planned)
 - Style target: Vanilla-like gameplay
 - Designed to be lightweight and minimally invasive
 - Intended to coexist with most QoL and world-generation mods

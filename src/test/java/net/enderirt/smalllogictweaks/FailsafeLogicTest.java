@@ -124,7 +124,7 @@ public class FailsafeLogicTest {
         java.util.UUID playerB = java.util.UUID.randomUUID();
         net.minecraft.core.BlockPos targetPos = new net.minecraft.core.BlockPos(100, 64, 200);
 
-        SmallLogicTweaksEvents.TimberSpeedKey keyPlayerA_Timber3 = new SmallLogicTweaksEvents.TimberSpeedKey(
+        net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey keyPlayerA_Timber3 = new net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey(
                 "minecraft:overworld",
                 targetPos,
                 playerA,
@@ -132,7 +132,7 @@ public class FailsafeLogicTest {
                 false
         );
 
-        SmallLogicTweaksEvents.TimberSpeedKey keyPlayerB_NoTimber = new SmallLogicTweaksEvents.TimberSpeedKey(
+        net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey keyPlayerB_NoTimber = new net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey(
                 "minecraft:overworld",
                 targetPos,
                 playerB,
@@ -140,7 +140,7 @@ public class FailsafeLogicTest {
                 false
         );
 
-        SmallLogicTweaksEvents.TimberSpeedKey keyPlayerA_Sneaking = new SmallLogicTweaksEvents.TimberSpeedKey(
+        net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey keyPlayerA_Sneaking = new net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey(
                 "minecraft:overworld",
                 targetPos,
                 playerA,
@@ -148,7 +148,7 @@ public class FailsafeLogicTest {
                 true
         );
 
-        SmallLogicTweaksEvents.TimberSpeedKey keyPlayerA_Nether = new SmallLogicTweaksEvents.TimberSpeedKey(
+        net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey keyPlayerA_Nether = new net.enderirt.smalllogictweaks.handler.TimberHandler.TimberSpeedKey(
                 "minecraft:the_nether",
                 targetPos,
                 playerA,

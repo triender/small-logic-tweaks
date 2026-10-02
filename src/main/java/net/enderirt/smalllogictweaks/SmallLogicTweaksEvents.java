@@ -1,176 +1,47 @@
 package net.enderirt.smalllogictweaks;
 
-import net.enderirt.smalllogictweaks.ModEnchants.Timber;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.stats.Stats;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.monster.Phantom;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.alchemy.Potions;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.biome.Biomes;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.LeavesBlock;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.fabricmc.fabric.api.item.v1.DefaultItemComponentEvents;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.Compostable;
-import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
-import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.enderirt.smalllogictweaks.handler.BoneMealHandler;
+import net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler;
+import net.enderirt.smalllogictweaks.handler.DirtReversionHandler;
+import net.enderirt.smalllogictweaks.handler.EndPhantomHandler;
+import net.enderirt.smalllogictweaks.handler.TimberHandler;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.world.level.gamerules.GameRules;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import java.util.concurrent.TimeUnit;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.item.v1.DefaultItemComponentEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.Compostable;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.resources.Identifier;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.InteractionHand;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-import java.util.*;
+/**
+ * VI: Bo dieu hop su kien Fabric (Fabric Event Adapter) ket noi Fabric Lifecycle vao cac Handler doc lap.
+ * EN: Fabric event adapter connecting Fabric lifecycle callbacks to standalone platform-neutral handlers.
+ */
+public final class SmallLogicTweaksEvents {
 
-
-public class SmallLogicTweaksEvents {
     private static final Logger LOGGER = LoggerFactory.getLogger("small_logic_tweaks");
 
-    // Ánh xạ 16 màu của Bột Bê Tông sang Khối Bê Tông tương ứng sử dụng ColorCollection mới của 26.2
-    public static final Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> POWDER_TO_CONCRETE;
-    static {
-        Map<net.minecraft.world.level.block.Block, net.minecraft.world.level.block.Block> map = new HashMap<>();
-        for (net.minecraft.world.item.DyeColor color : net.minecraft.world.item.DyeColor.values()) {
-            map.put(net.minecraft.world.level.block.Blocks.CONCRETE_POWDER.pick(color), net.minecraft.world.level.block.Blocks.CONCRETE.pick(color));
-        }
-        POWDER_TO_CONCRETE = Map.copyOf(map);
-    }
+    // Tuong thich nguoc cho cac module va test hien tai
+    public static final Map<Block, Block> POWDER_TO_CONCRETE = ConcreteHardeningHandler.POWDER_TO_CONCRETE;
+    public static final TagKey<Block> PICKAXE_REVERSION_BLOCKS = DirtReversionHandler.PICKAXE_REVERSION_BLOCKS;
 
-    // Block tag: các khối có thể hoàn nguyên thành Đất khi dùng cúp chuột phải
-    public static final TagKey<net.minecraft.world.level.block.Block> PICKAXE_REVERSION_BLOCKS = TagKey.create(
-            Registries.BLOCK,
-            Identifier.fromNamespaceAndPath(SmallLogicTweaks.MOD_ID, "pickaxe_reversion")
-    );
-
-    public static void register() {
-        registerBoneMealTweak();
-        registerTimberTweak();
-        registerPotatoTweaks();
-        registerHydroHardeningTweak();
-        registerPickaxeDirtReversionTweak();
-        registerEndPhantomTweak();
-        LOGGER.info(" Small logic Tweaks Mod register success!!");
-    }
-
-    private static void registerBoneMealTweak() {
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_BONE_MEAL_TWEAK) return InteractionResult.PASS;
-            if (player.isSpectator()) return InteractionResult.PASS;
-
-            ItemStack stack = player.getItemInHand(hand);
-            BlockPos pos = hitResult.getBlockPos();
-            BlockState state = world.getBlockState(pos);
-
-            // 1. Kiểm tra loại khối đất hợp lệ
-            boolean isValidDirt = SmallLogicTweaksConfig.ACTIVE_INSTANCE.ALLOW_ALL_DIRT_TYPES
-                    ? state.is(BlockTags.DIRT)
-                    : state.is(Blocks.DIRT);
-
-            if (stack.is(Items.BONE_MEAL) && isValidDirt) {
-                BlockPos abovePos = pos.above();
-
-                // 2. Kiểm tra không gian trống phía trên
-                if (world.getBlockState(abovePos).isSolidRender() || !world.getFluidState(abovePos).isEmpty())
-                    return InteractionResult.PASS;
-
-                BlockState newState = null;
-
-                // 3. Xử lý logic khối nguồn lân cận
-                if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE) {
-                    boolean hasGrassNeighbor = false;
-                    boolean hasMyceliumNeighbor = false;
-
-                    for (BlockPos checkPos : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
-                        if (checkPos.equals(pos)) continue;
-
-                        BlockState neighborState = world.getBlockState(checkPos);
-                        if (neighborState.is(Blocks.GRASS_BLOCK)) hasGrassNeighbor = true;
-                        if (neighborState.is(Blocks.MYCELIUM)) hasMyceliumNeighbor = true;
-                    }
-
-                    // Chọn khối đích dựa trên khối nguồn thực tế xung quanh (Ưu tiên tính logic thực tế)
-                    if (hasMyceliumNeighbor || hasGrassNeighbor) {
-                        if (world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)) {
-                            // Biome Nấm ưu tiên Khuẩn ty, nếu không có Khuẩn ty lân cận thì mới thành Cỏ
-                            newState = hasMyceliumNeighbor ? Blocks.MYCELIUM.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
-                        } else {
-                            // Các Biome thường ưu tiên Cỏ, nếu không có Cỏ lân cận thì mới thành Khuẩn ty
-                            newState = hasGrassNeighbor ? Blocks.GRASS_BLOCK.defaultBlockState() : Blocks.MYCELIUM.defaultBlockState();
-                        }
-                    }
-
-                    // Nếu bật REQUIRE_NEIGHBOR_SOURCE nhưng xung quanh hoàn toàn không có cỏ/khuẩn ty -> Hủy bỏ
-                    if (newState == null) return InteractionResult.PASS;
-                } else {
-                    // Nếu không yêu cầu khối nguồn, áp dụng logic Biome gốc của bạn
-                    newState = world.getBiome(pos).is(Biomes.MUSHROOM_FIELDS)
-                            ? Blocks.MYCELIUM.defaultBlockState()
-                            : Blocks.GRASS_BLOCK.defaultBlockState();
-                }
-
-                // --- ĐIỂM CHỐT LÀM MƯỢT GAME (CLIENT-SIDE PREDICTION) ---
-                // Phía Client thấy mọi điều kiện đã đủ thì trả về SUCCESS ngay để vung tay vón phân lập tức
-                if (world.isClientSide()) return InteractionResult.SUCCESS;
-
-                // --- LOGIC XỬ LÝ PHÍA SERVER ---
-                world.setBlockAndUpdate(pos, newState);
-                world.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 1.0f, 1.0f);
-
-                if (world instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                    serverLevel.sendParticles(
-                            net.minecraft.core.particles.ParticleTypes.HAPPY_VILLAGER,
-                            pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
-                            5, 0.25, 0.25, 0.25, 0.05
-                    );
-                }
-
-                if (!player.getAbilities().instabuild)
-                    stack.shrink(1);
-
-                return InteractionResult.SUCCESS;
-            }
-            return InteractionResult.PASS;
-        });
-    }
-
-    public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
-
-    /**
-     * VI: Cấu trúc kết quả phân tích cấu trúc cây gỗ Timber.
-     * EN: Timber tree structure analysis result record.
-     */
     public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
 
-    /**
-     * VI: Khóa bộ nhớ đệm tốc độ đào Timber tổng hợp toàn bộ các chiều phụ thuộc dữ liệu:
-     * Chiều không gian, tọa độ khối, UUID người chơi, cấp độ phù phép Timber và trạng thái cúi người (Shift).
-     * EN: Composite Timber mining speed cache key incorporating all data dependencies:
-     * Dimension, block position, player UUID, Timber enchantment level, and sneak (Shift) state.
-     */
     public record TimberSpeedKey(
             Object dimension,
             BlockPos pos,
@@ -179,589 +50,82 @@ public class SmallLogicTweaksEvents {
             boolean isShiftKeyDown
     ) {}
 
-    // [VI] Bộ nhớ đệm tạm thời (2 giây, tối đa 20 mục) ngăn ngừa tụt FPS khi tia đào va chạm liên tục mỗi tick
-    // [EN] Short-lived cache (2 seconds, max 20 entries) preventing FPS drops from continuous per-tick raycast evaluations
-    private static final Cache<TimberSpeedKey, Float> TIMBER_SPEED_CACHE = CacheBuilder.newBuilder()
-            .maximumSize(20)
-            .expireAfterWrite(2, TimeUnit.SECONDS)
-            .build();
+    private SmallLogicTweaksEvents() {}
 
-    // [VI] Hàm tiện ích để in log gỡ lỗi / [EN] Utility method for debug logging
-    private static void debugLog(String message, Object... args) {
-        if (ENABLE_TIMBER_DEBUG_LOGS) {
-            LOGGER.info(message, args);
-        }
+    /**
+     * VI: Dang ky toan bo su kien Fabric vao cac Handler logic tuong ung.
+     * EN: Registers all Fabric event callbacks and delegates them to core handlers.
+     */
+    public static void register() {
+        registerBoneMealTweak();
+        registerTimberTweak();
+        registerPotatoTweaks();
+        registerHydroHardeningTweak();
+        registerPickaxeDirtReversionTweak();
+        registerEndPhantomTweak();
+        LOGGER.info("Small logic Tweaks Mod register success!!");
+    }
+
+    private static void registerBoneMealTweak() {
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
+                BoneMealHandler.handleBoneMeal(world, player, hand, hitResult));
     }
 
     private static void registerTimberTweak() {
-        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, entity) -> {
-            if (!(world instanceof ServerLevel serverLevel) || player.isSpectator()) return true;
-
-            ItemStack axe = player.getMainHandItem();
-
-            if (state.is(BlockTags.LOGS)) {
-                debugLog("[Timber] Player {} is breaking a log at {}", player.getName().getString(), pos.toShortString());
-            }
-
-            TimberResult result = analyzeTimber(serverLevel, player, pos, axe);
-
-            if (result.shouldChop()) {
-                debugLog("[Timber] Validation successful! Found {} logs to break.", result.logs().size());
-                performTimberChop(serverLevel, player, axe, result);
-                return false;
-            }
-
-            return true;
-        });
-    }
-
-    /**
-     * VI: Tính toán và tra cứu hệ số làm chậm tốc độ đào (sức cản cấu trúc) tương ứng với quy mô của cây gỗ.
-     * EN: Calculates and retrieves the mining speed slowdown factor (structural resistance) relative to tree scale.
-     *
-     * @param player VI: Người chơi đang khai thác / EN: Player mining the block
-     * @param pos    VI: Vị trí khối gỗ mục tiêu / EN: Target log block position
-     * @return       VI: Hệ số làm chậm (1.0f là tốc độ bình thường) / EN: Slowdown factor (1.0f represents vanilla speed)
-     */
-    public static float getTimberSpeedFactor(Player player, BlockPos pos) {
-        // [VI] Kiểm tra nhanh điều kiện cơ bản: Nếu tính năng tắt, người chơi cúi người, hoặc không phải khối gỗ -> Trả về 1.0f ngay
-        // [EN] Fast-path pre-checks: If tweak is disabled, player is sneaking, or not a log -> Return 1.0f immediately
-        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_TIMBER_TWEAK || player.isShiftKeyDown()) {
-            return 1.0f;
-        }
-
-        Level level = player.level();
-        if (!level.getBlockState(pos).is(BlockTags.LOGS)) {
-            return 1.0f;
-        }
-
-        ItemStack axe = player.getMainHandItem();
-        int levelEnchant = 0;
-        try {
-            var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-            var timberHolder = registry.get(Timber.TIMBER);
-            if (timberHolder.isPresent()) {
-                levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(timberHolder.get(), axe);
-            }
-        } catch (Exception ignored) {}
-
-        // [VI] Nếu công cụ không có phù phép Timber -> Không áp dụng hình phạt đào chậm, bỏ qua cache
-        // [EN] If tool lacks Timber enchantment -> No slowdown penalty applies, bypass cache entirely
-        if (levelEnchant <= 0) {
-            return 1.0f;
-        }
-
-        // [VI] Tạo khóa cache đầy đủ ngữ cảnh để ngăn chặn việc người chơi khác nhau dùng chung cache
-        // [EN] Create fully-qualified composite key preventing cross-player or cross-tool cache pollution
-        TimberSpeedKey key = new TimberSpeedKey(
-                level.dimension(),
-                pos.immutable(),
-                player.getUUID(),
-                levelEnchant,
-                player.isShiftKeyDown()
-        );
-
-        Float cachedFactor = TIMBER_SPEED_CACHE.getIfPresent(key);
-        if (cachedFactor != null) {
-            return cachedFactor;
-        }
-
-        // [VI] Tiến hành thuật toán quét BFS nếu chưa có trong RAM
-        // [EN] Execute BFS structure scan if not present in memory cache
-        var result = analyzeTimber(level, player, pos, axe);
-
-        float newFactor = 1.0f;
-        if (result.shouldChop() && !result.logs().isEmpty()) {
-            float multiplier = switch (result.level()) {
-                case 1 -> 1.0f;
-                case 2 -> 0.9f;
-                case 3 -> 0.8f;
-                default -> 1.0f;
-            };
-            newFactor = result.logs().size() * multiplier;
-        }
-
-        // [VI] Lưu kết quả phân tích vào cache với khóa đầy đủ
-        // [EN] Store analysis result in cache with full composite key
-        TIMBER_SPEED_CACHE.put(key, newFactor);
-
-        return newFactor;
-    }
-    private static TimberResult analyzeTimber(Level level, Player player, BlockPos startPos, ItemStack axe) {
-        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_TIMBER_TWEAK)
-            return new TimberResult(false, List.of(), List.of(), 0);
-
-        if (player.isShiftKeyDown() || !level.getBlockState(startPos).is(BlockTags.LOGS))
-            return new TimberResult(false, List.of(), List.of(), 0);
-
-        var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-        int levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(registry.getOrThrow(Timber.TIMBER), axe);
-
-        if (levelEnchant <= 0) {
-            return new TimberResult(false, List.of(), List.of(), 0);
-        }
-
-        int maxLogs;
-        switch (levelEnchant) {
-            case 1 -> maxLogs = 16;
-            case 2 -> maxLogs = 64;
-            default -> maxLogs = 140;
-        }
-
-        Set<BlockPos> visitedLogs = new HashSet<>();
-        List<BlockPos> logs = new ArrayList<>();
-        Queue<BlockPos> logQueue = new LinkedList<>();
-
-        logQueue.add(startPos);
-        visitedLogs.add(startPos);
-
-        // --- PHA 1: TÌM GỖ ---
-        while (!logQueue.isEmpty() && logs.size() < maxLogs) {
-            BlockPos current = logQueue.poll();
-            logs.add(current);
-
-            for (int x = -1; x <= 1; x++) {
-                for (int y = 0; y <= 1; y++) {
-                    for (int z = -1; z <= 1; z++) {
-                        if (x == 0 && y == 0 && z == 0) continue;
-                        BlockPos neighbor = current.offset(x, y, z);
-
-                        // Sử dụng biến cấu hình thay vì Magic Number
-                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
-                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
-
-                        if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
-                            visitedLogs.add(neighbor);
-                            logQueue.add(neighbor);
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- PHA 2: TÌM LÁ ---
-        Set<BlockPos> visitedLeaves = new HashSet<>();
-        List<BlockPos> leaves = new ArrayList<>();
-        Queue<BlockPos> leafQueue = new LinkedList<>();
-        Map<BlockPos, Integer> leafDistance = new HashMap<>();
-
-        for (BlockPos log : logs) {
-            leafQueue.add(log);
-            leafDistance.put(log, 0);
-        }
-
-        while (!leafQueue.isEmpty()) {
-            BlockPos current = leafQueue.poll();
-            int currentDist = leafDistance.get(current);
-
-            // Sử dụng biến cấu hình khoảng cách lá
-            if (!(currentDist < SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LEAF_DISTANCE)) continue;
-
-            for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
-                BlockPos neighbor = current.relative(dir);
-
-                if (!visitedLogs.contains(neighbor) && !visitedLeaves.contains(neighbor)) {
-                    visitedLeaves.add(neighbor);
-                    BlockState state = level.getBlockState(neighbor);
-
-                    if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                        leaves.add(neighbor);
-                        leafDistance.put(neighbor, currentDist + 1);
-                        leafQueue.add(neighbor);
-                    }
-                }
-            }
-        }
-
-        // Sử dụng biến cấu hình điều kiện lá tối thiểu
-        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.MIN_LEAVES_FOR_TREE;
-
-        return new TimberResult(isTree, logs, leaves, levelEnchant);
-    }
-
-    private static void performTimberChop(ServerLevel level, Player player, ItemStack axe, TimberResult result) {
-        debugLog("[Timber] Execution: Breaking {} logs and checking {} leaves...", result.logs().size(), result.leaves().size());
-        int brokenLogsCount = 0;
-
-        // 1. PHÁ GỖ (Giữ nguyên)
-        for (BlockPos logPos : result.logs()) {
-            if (axe.isEmpty() || (axe.isDamageableItem() && axe.getDamageValue() >= axe.getMaxDamage())) {
-                break;
-            }
-            if (level.destroyBlock(logPos, true, player)) {
-                brokenLogsCount++;
-
-                // Nếu người chơi thật -> Ép kiểu ServerPlayer để cập nhật thống kê mạng.
-                // Nếu là MockPlayer của GameTest -> Gán null, vũ khí vẫn sẽ bị trừ độ bền cục bộ.
-                ServerPlayer sp = player instanceof ServerPlayer ? (ServerPlayer) player : null;
-                axe.hurtAndBreak(1, level, sp, (item) ->
-                        player.onEquippedItemBroken(item, EquipmentSlot.MAINHAND));
-            }
-        }
-
-        // 2. ÉP GAME LOGIC XỬ LÝ LÁ (Tối ưu hóa In-Memory)
-        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
-
-            // Khởi tạo không gian RAM để lưu trữ khoảng cách tính toán
-            Map<BlockPos, Integer> virtualDistances = new HashMap<>();
-            for (BlockPos leafPos : result.leaves()) {
-                BlockState state = level.getBlockState(leafPos);
-                if (state.hasProperty(LeavesBlock.DISTANCE)) {
-                    virtualDistances.put(leafPos, state.getValue(LeavesBlock.DISTANCE));
-                }
-            }
-
-            boolean changed;
-            int loops = 0;
-
-            // BƯỚC A: Chạy thuật toán cập nhật khoảng cách hoàn toàn trên RAM
-            do {
-                changed = false;
-                for (BlockPos leafPos : result.leaves()) {
-                    BlockState state = level.getBlockState(leafPos);
-
-                    if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                        int currentDist = virtualDistances.getOrDefault(leafPos, 7);
-                        int minDistance = 7;
-
-                        for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
-                            BlockPos neighborPos = leafPos.relative(dir);
-                            BlockState neighbor = level.getBlockState(neighborPos);
-
-                            if (neighbor.is(BlockTags.LOGS)) {
-                                minDistance = 1;
-                                break;
-                            } else if (neighbor.is(BlockTags.LEAVES) && neighbor.hasProperty(LeavesBlock.DISTANCE)) {
-                                // Lấy khoảng cách từ RAM nếu có, ngược lại lấy từ thế giới thực
-                                int neighborDist = virtualDistances.containsKey(neighborPos)
-                                        ? virtualDistances.get(neighborPos)
-                                        : neighbor.getValue(LeavesBlock.DISTANCE);
-
-                                minDistance = Math.min(minDistance, neighborDist + 1);
-                            }
-                        }
-
-                        // So sánh trên RAM, không gọi level.setBlock
-                        if (currentDist != minDistance) {
-                            virtualDistances.put(leafPos, minDistance);
-                            changed = true;
-                        }
-                    }
-                }
-                loops++;
-            } while (changed && loops < 10);
-
-            // BƯỚC B: Phá vỡ hoặc cập nhật lại trạng thái thực tế
-            for (BlockPos leafPos : result.leaves()) {
-                BlockState state = level.getBlockState(leafPos);
-
-                if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                    int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
-
-                    if (finalDistance >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.DECAY_THRESHOLD) {
-                        // Lá đạt ngưỡng: Thực hiện phá khối
-                        level.destroyBlock(leafPos, true);
-                    } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
-                        // Lá còn sống (do nối với cây khác): Cập nhật lại khoảng cách thực tế vào thế giới
-                        level.setBlock(leafPos, state.setValue(LeavesBlock.DISTANCE, finalDistance), 20);
-                    }
-                }
-            }
-        }
-
-        debugLog("[Timber] Execution finished. Logs broken: {}", brokenLogsCount);
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, entity) ->
+                TimberHandler.handleTimberChop(world, player, pos, state));
     }
 
     private static void registerPotatoTweaks() {
-        // Tweak 1: Sử dụng với Thùng ủ phân (Composter)
-        // MC 26.3: ComposterBlock.COMPOSTABLES đã bị xóa, dùng DataComponents.COMPOSTABLE qua DefaultItemComponentEvents
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
             DefaultItemComponentEvents.MODIFY.register(context -> {
                 context.modify(Items.POISONOUS_POTATO, builder -> {
-                    // ResolvableInt.Constant(65) = 65% xác suất (so sánh với vanilla medium = 65%)
                     builder.set(DataComponents.COMPOSTABLE, new Compostable(new ResolvableInt.Constant(65)));
                 });
             });
-            debugLog("[Potato Tweak] Registered Poisonous Potato to Composter via DefaultItemComponentEvents.");
-        }
-
-        // Tweak 2: Bột chế thuốc độc (Potion of Poison)
-        // MC 26.3: FabricPotionBrewingBuilder đã bị xóa, brewing là data-driven recipe.
-        // Recipe JSON nằm tại: data/small_logic_tweaks/recipe/brewing/potion_awkward_poisonous_potato.json
-        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
-            debugLog("[Potato Tweak] Poisonous Potato brewing recipe is registered via data-pack JSON (26.3 data-driven system).");
-        }
-    }
-
-
-    public static boolean tryHardenConcrete(net.minecraft.world.level.Level world, net.minecraft.core.BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        net.minecraft.world.level.block.Block hardenedBlock = POWDER_TO_CONCRETE.get(state.getBlock());
-
-        if (hardenedBlock != null) {
-            world.setBlockAndUpdate(pos, hardenedBlock.defaultBlockState());
-            if (world instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                // Tạo hiệu ứng hạt khói/nước tại vị trí khối được hóa cứng
-                serverLevel.sendParticles(
-                        net.minecraft.core.particles.ParticleTypes.SPLASH,
-                        pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
-                        5, 0.25, 0.25, 0.25, 0.05
-                );
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
+                LOGGER.info("[Potato Tweak] Registered Poisonous Potato to Composter via DefaultItemComponentEvents.");
             }
-            return true;
         }
-        return false;
     }
 
     private static void registerHydroHardeningTweak() {
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            // Chỉ bỏ qua chế độ Khán giả và kiểm tra cấu hình ngay từ đầu
-            if (player.isSpectator() || !SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_HYDRO_HARDENING) {
-                return InteractionResult.PASS;
-            }
-
-            ItemStack stack = player.getItemInHand(hand);
-            BlockPos pos = hitResult.getBlockPos();
-            BlockState state = world.getBlockState(pos);
-
-            // Xác minh vật phẩm trên tay là Thuốc (Potion)
-            if (stack.is(Items.POTION)) {
-                // Đọc Component dữ liệu để xem đây có phải là chai Nước cất (Water) không
-                var potionContents = stack.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
-
-                if (potionContents != null && potionContents.is(net.minecraft.world.item.alchemy.Potions.WATER)) {
-
-                    // Tra cứu xem khối đang tương tác có nằm trong từ điển Bột Bê Tông không
-                    net.minecraft.world.level.block.Block hardenedBlock = POWDER_TO_CONCRETE.get(state.getBlock());
-
-                    if (hardenedBlock != null) {
-                        // ĐỒNG BỘ CLIENT-SIDE (QUAN TRỌNG):
-                        // Trả về SUCCESS ở Client để chặn đứng hành vi mặc định (uống nước)
-                        if (world.isClientSide()) {
-                            return InteractionResult.SUCCESS;
-                        }
-
-                        // --- LOGIC PHÍA SERVER ---
-                        // 1. Cập nhật khối thành Bê tông đặc
-                        world.setBlockAndUpdate(pos, hardenedBlock.defaultBlockState());
-
-                        // 2. Phát âm thanh kết hợp: Tiếng đổ nước và tiếng dọn chai
-                        world.playSound(null, pos, SoundEvents.GENERIC_SPLASH, SoundSource.BLOCKS, 0.5f, 1.0f);
-                        world.playSound(null, pos, SoundEvents.BOTTLE_EMPTY, SoundSource.BLOCKS, 1.0f, 1.0f);
-
-                        // 3. Xử lý trả lại Chai Thủy Tinh rỗng (Nếu không phải chế độ Sáng tạo)
-                        if (!player.getAbilities().instabuild) {
-                            ItemStack glassBottle = new ItemStack(Items.GLASS_BOTTLE);
-                            stack.shrink(1); // Giảm đi 1 bình nước
-
-                            if (stack.isEmpty()) {
-                                // Nếu trên tay chỉ có đúng 1 bình, thay trực tiếp bằng chai rỗng
-                                player.setItemInHand(hand, glassBottle);
-                            } else if (!player.getInventory().add(glassBottle)) {
-                                // Nếu hành trang đầy, vứt chai rỗng xuống đất
-                                player.drop(glassBottle, false, net.minecraft.util.Prediction.SERVER_ONLY);
-                            }
-                        }
-
-                        debugLog("[Hydro-Hardening] Converted Concrete Powder at {}", pos.toShortString());
-                        return InteractionResult.SUCCESS;
-                    }
-                }
-            }
-            return InteractionResult.PASS;
-        });
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
+                ConcreteHardeningHandler.handleWaterBottle(world, player, hand, hitResult));
     }
 
     private static void registerPickaxeDirtReversionTweak() {
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) return InteractionResult.PASS;
-            if (player.isSpectator()) return InteractionResult.PASS;
-
-            ItemStack stack = player.getItemInHand(hand);
-
-            // 1. Kiểm tra công cụ phải là cúp (Pickaxe)
-            if (!stack.is(ItemTags.PICKAXES)) return InteractionResult.PASS;
-
-            BlockPos pos = hitResult.getBlockPos();
-            BlockState state = world.getBlockState(pos);
-
-            // 2. Kiểm tra khối phải thuộc tag #small_logic_tweaks:pickaxe_reversion
-            if (!state.is(PICKAXE_REVERSION_BLOCKS)) return InteractionResult.PASS;
-
-            // 3. Client-side prediction: Giao tập hợp giữa Hitbox người chơi và mặt trên của khối
-            double targetY = pos.getY() + 1.0;
-            net.minecraft.world.phys.AABB blockTopArea = new net.minecraft.world.phys.AABB(
-                    pos.getX(), pos.getY() + 0.85, pos.getZ(),
-                    pos.getX() + 1.0, pos.getY() + 1.05, pos.getZ() + 1.0
-            );
-
-            if (player.getBoundingBox().intersects(blockTopArea) && player.getY() < targetY) {
-                player.setPos(player.getX(), targetY, player.getZ());
-                // Triệt tiêu quán tính rơi xuống nếu có
-                var movement = player.getDeltaMovement();
-                if (movement.y < 0) {
-                    player.setDeltaMovement(movement.x, 0.0, movement.z);
-                }
-            }
-
-            if (world.isClientSide()) return InteractionResult.SUCCESS;
-
-            // --- LOGIC PHÍA SERVER ---
-            // 4. Chuyển đổi khối thành Đất nguyên thủy
-            world.setBlockAndUpdate(pos, Blocks.DIRT.defaultBlockState());
-
-            // 4.1. Bù đắp tọa độ Y phía server cho các thực thể lân cận (Mobs, động vật, người chơi khác)
-            if (world instanceof ServerLevel serverLevel) {
-                for (net.minecraft.world.entity.Entity entity : serverLevel.getEntitiesOfClass(net.minecraft.world.entity.Entity.class, blockTopArea)) {
-                    if (entity.getY() < targetY) {
-                        entity.setPos(entity.getX(), targetY, entity.getZ());
-                        var entMovement = entity.getDeltaMovement();
-                        if (entMovement.y < 0) {
-                            entity.setDeltaMovement(entMovement.x, 0.0, entMovement.z);
-                        }
-                    }
-                }
-            }
-
-            // 5. Phát âm thanh cuốc xới đất
-            world.playSound(null, pos, SoundEvents.SHOVEL_FLATTEN.value(), SoundSource.BLOCKS, 1.0f, 0.9f + world.getRandom().nextFloat() * 0.2f);
-
-            // 6. Bắn hiệu ứng hạt bụi / khói nhẹ
-            if (world instanceof ServerLevel serverLevel) {
-                serverLevel.sendParticles(
-                        ParticleTypes.SMOKE,
-                        pos.getX() + 0.5, pos.getY() + 0.95, pos.getZ() + 0.5,
-                        6, 0.2, 0.05, 0.2, 0.02
-                );
-            }
-
-            // 7. Trừ độ bền cúp (hỗ trợ Unbreaking, kích hoạt gãy nếu hết HP)
-            if (!player.getAbilities().instabuild) {
-                ServerPlayer sp = player instanceof ServerPlayer serverPlayer ? serverPlayer : null;
-                EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-                stack.hurtAndBreak(1, (ServerLevel) world, sp, item -> player.onEquippedItemBroken(item, slot));
-            }
-
-            return InteractionResult.SUCCESS;
-        });
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
+                DirtReversionHandler.handlePickaxeReversion(world, player, hand, hitResult));
     }
 
     private static void registerEndPhantomTweak() {
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> {
-            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
-
             if (origin.dimension() == Level.END) {
-                player.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
-                if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                    LOGGER.info("[End-Phantom Debug] Reset Player stats: {} ", player.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)));
-                }
+                EndPhantomHandler.resetInsomnia(player);
             }
         });
 
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
-
             if (oldPlayer.level().dimension() == Level.END) {
-                newPlayer.resetStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+                EndPhantomHandler.resetInsomnia(newPlayer);
             }
         });
 
-        ServerTickEvents.END_LEVEL_TICK.register(level -> {
-            if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
-            if (level.dimension() != Level.END) return;
-            if (!level.getGameRules().get(GameRules.SPAWN_PHANTOMS)) return;
+        ServerTickEvents.END_LEVEL_TICK.register(EndPhantomHandler::handleEndTick);
+    }
 
-            for (net.minecraft.server.level.ServerPlayer player : level.players()) {
-                if (player.isSpectator() || player.isCreative()) continue;
-                if ((level.getGameTime() + player.getId()) % SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_CHECK_COOLDOWN != 0) continue;
+    // --- FACADE METHODS DELEGATE SANG CORE HANDLERS ---
 
-                executePhantomSpawnLogic(level, player);
-            }
-        });
+    public static boolean tryHardenConcrete(Level world, BlockPos pos) {
+        return ConcreteHardeningHandler.tryHardenConcrete(world, pos);
+    }
+
+    public static float getTimberSpeedFactor(Player player, BlockPos pos) {
+        return TimberHandler.getTimberSpeedFactor(player, pos);
     }
 
     public static void executePhantomSpawnLogic(ServerLevel level, Player player) {
-        // Nhận diện xem người chơi có phải là Mock/Fake Player trong GameTest hay không
-        boolean isMockPlayer = player.getClass().getSimpleName().contains("Mock")
-                || player.getClass().getSimpleName().contains("GameTest")
-                || !(player instanceof ServerPlayer);
-
-        // 1. Kiểm tra Stat an toàn (Vì MockPlayer không có StatManager thực tế)
-        int timeSinceRest = 0;
-        if (!isMockPlayer) {
-            ServerPlayer sp = (ServerPlayer) player;
-            timeSinceRest = sp.getStats().getValue(net.minecraft.stats.Stats.CUSTOM.get(net.minecraft.stats.Stats.TIME_SINCE_REST));
-        } else {
-            // Nếu là MockPlayer trong GameTest, ta giả định là người chơi đã thức rất lâu (Ví dụ: 10 ngày)
-            // để logic spawn luôn được kích hoạt mà không cần hack Stat
-            timeSinceRest = 240000;
-        }
-
-        // 2. Kiểm tra Elytra (Sử dụng Player thay vì ServerPlayer vì Inventory nằm ở lớp Player)
-        boolean hasElytra = player.getInventory().hasAnyMatching(stack -> stack.is(net.minecraft.world.item.Items.ELYTRA))
-                || player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA);
-
-        int currentInsomniaThreshold = hasElytra
-                ? SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
-                : SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
-
-        // 3. Logic Roll RNG và Spawn
-        if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
-            var random = level.getRandom();
-
-            // Trong GameTest, ta ép cho rollValue luôn đạt chuẩn để tránh "hên xui" khi test
-            int rollValue = isMockPlayer ? timeSinceRest : random.nextInt(timeSinceRest);
-
-            if (rollValue >= currentInsomniaThreshold) {
-                var nearbyPhantoms = level.getEntitiesOfClass(
-                        net.minecraft.world.entity.monster.Phantom.class,
-                        player.getBoundingBox().inflate(128.0, 128.0, 128.0)
-                );
-
-                int localCap = SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MOB_CAP;
-                if (nearbyPhantoms.size() >= localCap) return;
-
-                int minCount = Math.max(1, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_COUNT);
-                int maxCount = Math.max(minCount, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_COUNT);
-                int countRange = Math.max(1, (maxCount - minCount) + 1);
-
-                // Tính số lượng cần spawn
-                int desiredSpawnCount = minCount + random.nextInt(countRange);
-                int phantomCount = Math.min(desiredSpawnCount, localCap - nearbyPhantoms.size());
-
-                net.minecraft.core.BlockPos playerPos = player.blockPosition();
-                int minHeight = Math.max(0, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MIN_SPAWN_HEIGHT);
-                int maxHeight = Math.max(minHeight, SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_MAX_SPAWN_HEIGHT);
-                int heightRange = Math.max(1, (maxHeight - minHeight) + 1);
-
-                for (int i = 0; i < phantomCount; i++) {
-                    int randomHeight = minHeight + random.nextInt(heightRange);
-                    net.minecraft.core.BlockPos spawnPos = playerPos.above(randomHeight).offset(-10 + random.nextInt(21), 0, -10 + random.nextInt(21));
-
-                    // Kiểm tra va chạm để spawn an toàn
-                    boolean isValidSpawn = false;
-                    for (int attempt = 0; attempt < 10; attempt++) {
-                        net.minecraft.world.phys.AABB spawnBox = net.minecraft.world.entity.EntityTypes.PHANTOM
-                                .getDimensions()
-                                .makeBoundingBox(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
-
-                        if (level.noCollision(spawnBox)) {
-                            isValidSpawn = true;
-                            break;
-                        }
-                        spawnPos = spawnPos.above();
-                    }
-
-                    if (!isValidSpawn) continue;
-
-                    net.minecraft.world.entity.monster.Phantom phantom = net.minecraft.world.entity.EntityTypes.PHANTOM.create(level, net.minecraft.world.entity.EntitySpawnReason.NATURAL);
-                    if (phantom != null) {
-                        phantom.setPos(spawnPos.getX() + 0.5D, (double) spawnPos.getY(), spawnPos.getZ() + 0.5D);
-                        phantom.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.EntitySpawnReason.NATURAL, null);
-                        level.addFreshEntityWithPassengers(phantom);
-                    }
-                }
-            }
-        }
+        EndPhantomHandler.executePhantomSpawnLogic(level, player);
     }
 }
