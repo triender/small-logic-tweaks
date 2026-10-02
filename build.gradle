@@ -260,14 +260,43 @@ tasks.register("verifyChangelog") {
 def modrinthVersionType = getVersionType()
 def modrinthChangelog = getChangelogText()
 
+// [VI] Thông số phát hành do scripts/deploy.ps1 truyền vào từ scripts/deploy_config.json (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt)
+// [EN] Release parameters passed by scripts/deploy.ps1 from scripts/deploy_config.json (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt)
+def releaseProjectId = (project.findProperty("modrinthProjectId") ?: "small-logic-tweak").toString()
+def releaseLoaders = (project.findProperty("modrinthLoaders") ?: "fabric").toString().split(",")*.trim().findAll { it }
+def releaseVersionName = "Small Logic Tweaks ${project.version}"
+
+// Task to export release metadata as JSON for scripts/deploy.ps1 (single source of truth for version/type/changelog parsing)
+tasks.register("exportReleaseInfo") {
+	def outFile = layout.buildDirectory.file("release/info.json")
+	def jarName = tasks.named("jar").flatMap { it.archiveFileName }
+	outputs.upToDateWhen { false }
+	doLast {
+		def info = [
+			modVersion      : project.version.toString(),
+			baseVersion     : getBaseVersion(),
+			minecraftVersion: project.minecraft_version.toString(),
+			versionType     : getVersionType(),
+			versionName     : releaseVersionName.toString(),
+			loaders         : releaseLoaders,
+			jar             : jarName.get(),
+			changelog       : getChangelogText()
+		]
+		def file = outFile.get().asFile
+		file.parentFile.mkdirs()
+		file.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(info)), "UTF-8")
+		println "Release info written to ${file}"
+	}
+}
+
 modrinth {
 	token = System.getenv("MODRINTH_TOKEN") ?: ""
-	projectId = "small-logic-tweak"
+	projectId = releaseProjectId
 	versionNumber = project.version
-	versionName = "Small Logic Tweaks ${project.version}"
+	versionName = releaseVersionName
 	versionType = modrinthVersionType
 	gameVersions = [project.minecraft_version]
-	loaders = ["fabric"]
+	loaders = releaseLoaders
 	changelog = modrinthChangelog
 	uploadFile = tasks.jar
 	
