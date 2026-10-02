@@ -18,7 +18,7 @@
 ### ⚙️ Changed
 * **Distribution JAR optimization:** Excluded internal GameTest classes and DataGenerator files from the production distribution JAR and sources JAR, reducing artifact size by ~20% (from 97.6 KB to 78.6 KB).
 
-**Status:** Beta. Feedback is welcome!
+**Status:** Release. Feedback is welcome!
 
 ---
 # 🌱 Dirt Reversion & 🍳 Aesthetic Kitchen Update (Version 1.5.0)
