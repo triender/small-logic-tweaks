@@ -6,15 +6,16 @@
 #   .\scripts\deploy.ps1           # verify every branch, then release the branches marked "deploy": true
 #
 # WHAT is released and WHERE is decided only by scripts/deploy_config.json:
-#   platforms.modrinth / platforms.github / platforms.git_push -> enabled + target
+#   platforms.modrinth / curseforge / github / git_push -> enabled + target
 #   branches[]            -> every supported branch (all of them are verified)
 #   branches[].deploy     -> released in this run
-#   branches[].loaders    -> Modrinth loader tags (default ["fabric"]); "quilt" adds a Quilt server boot test
-#   quilt_test_loader     -> Quilt Loader version used by that boot test
+#   branches[].loaders    -> "fabric", "neoforge" (one jar and one Modrinth/CurseForge version each) and
+#                            "quilt" (extra tag on the Fabric jar); default ["fabric"]
+#   quilt_test_loader     -> Quilt Loader version used by the Quilt boot test
 #
 # ARCHITECTURAL RULES (see .agents/AGENTS.md):
 # 1. Phase 1 verifies EVERY branch in the config: changelog, clean compile, JUnit, GameTest, packaging,
-#    plus the Quilt boot test when the branch declares the "quilt" loader.
+#    plus a headless server boot test (with a forced mixin audit) for every declared "quilt"/"neoforge" loader.
 # 2. If any branch fails Phase 1, the pipeline stops: nothing is pushed or uploaded.
 # 3. Phase 2 releases only "deploy": true branches, and only the exact commit verified in Phase 1.
 # 4. Each branch is built from its committed state in its own git worktree outside the repository,
@@ -33,10 +34,13 @@ $WorkRoot = Join-Path $env:LOCALAPPDATA "small-logic-tweaks-deploy"
 $WorktreeRoot = Join-Path $WorkRoot "worktrees"
 $QuiltRoot = Join-Path $WorkRoot "quilt"
 $QuiltInstallerVersion = "0.15.1"
-$KnownLoaders = @("fabric", "quilt")
+$NeoForgeRoot = Join-Path $WorkRoot "neoforge"
+$KnownLoaders = @("fabric", "quilt", "neoforge")
 $UserAgent = "triender/small-logic-tweaks-deploy/2.0"
-$VerifyStages = @("Changelog", "Compile", "JUnit", "GameTest", "Package", "Quilt")
-$ReleaseStages = @("Push", "Modrinth", "GitHub")
+$VerifyStages = @("Changelog", "Compile", "JUnit", "GameTest", "Package", "Quilt", "NeoForge")
+$ReleaseStages = @("Push", "GitHub")
+$ArtifactStages = @("Modrinth", "CurseForge")
+$MixinAuditMarker = "[Mixin audit] PASSED"
 
 # ==============================================================================
 # Helpers
@@ -168,93 +172,139 @@ function Test-VersionAlignment($Branch) {
 function Read-ReleaseInfo($Branch) {
     $path = Join-Path $Branch.Worktree "build\release\info.json"
     if (-not (Test-Path $path)) {
-        Write-Host "build/release/info.json missing. Branch $($Branch.Name) needs the exportReleaseInfo task in build.gradle (sync it from 26.3)." -ForegroundColor Red
+        Write-Host "build/release/info.json missing. Branch $($Branch.Name) needs the exportReleaseInfo task in build.gradle (sync it from the newest branch)." -ForegroundColor Red
         return $false
     }
     $Branch.Info = Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
-    # Multi-module branches report a repo-relative path (fabric/build/libs/...); older single-module branches a bare file name
-    $jar = "$($Branch.Info.jar)"
-    $Branch.JarPath = if ($jar -match '[\\/]') { Join-Path $Branch.Worktree $jar } else { Join-Path $Branch.Worktree "build\libs\$jar" }
-    if (-not (Test-Path $Branch.JarPath)) {
-        Write-Host "Jar not found: $($Branch.JarPath)" -ForegroundColor Red
-        return $false
-    }
     $expected = ($Branch.Loaders -join ",")
     $actual = (@($Branch.Info.loaders) -join ",")
     if ($actual -ne $expected) {
         Write-Host "build.gradle reports loaders '$actual' but config asks for '$expected'." -ForegroundColor Red
         return $false
     }
+
+    # Branches not yet split into loader modules only report one Fabric jar (bare file name)
+    $entries = @($Branch.Info.artifacts)
+    if (-not $Branch.Info.artifacts) {
+        $entries = @([pscustomobject]@{
+            loader = "fabric"; jar = "build/libs/$($Branch.Info.jar)"; project = ""
+            versionNumber = $Branch.Info.modVersion; versionName = $Branch.Info.versionName
+            versionType = $Branch.Info.versionType; modrinthLoaders = @($Branch.Info.loaders)
+        })
+    }
+    $Branch.Artifacts = @()
+    foreach ($entry in $entries) {
+        $status = [ordered]@{}
+        foreach ($stage in $ArtifactStages) { $status[$stage] = "-" }
+        $artifact = [pscustomobject]@{
+            Loader          = "$($entry.loader)"
+            JarPath         = Join-Path $Branch.Worktree "$($entry.jar)"
+            Project         = "$($entry.project)"
+            VersionNumber   = "$($entry.versionNumber)"
+            VersionName     = "$($entry.versionName)"
+            VersionType     = "$($entry.versionType)"
+            ModrinthLoaders = @($entry.modrinthLoaders)
+            Status          = $status
+        }
+        if (-not (Test-Path $artifact.JarPath)) {
+            Write-Host "Jar not found for $($artifact.Loader): $($artifact.JarPath)" -ForegroundColor Red
+            return $false
+        }
+        $Branch.Artifacts += $artifact
+    }
+    foreach ($loader in @($Branch.Loaders | Where-Object { $_ -ne "quilt" })) {
+        if (-not @($Branch.Artifacts | Where-Object { $_.Loader -eq $loader })) {
+            Write-Host "Branch $($Branch.Name) does not build a '$loader' jar (config asks for it)." -ForegroundColor Red
+            return $false
+        }
+    }
+    return Test-JarIsolation $Branch
+}
+
+# A loader jar must never carry the other loader's API classes (would crash or misbehave at load time).
+function Test-JarIsolation($Branch) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $forbidden = @{ "fabric" = "net/neoforged/"; "neoforge" = "net/fabricmc/" }
+    foreach ($artifact in $Branch.Artifacts) {
+        $needle = $forbidden[$artifact.Loader]
+        if (-not $needle) { continue }
+        $zip = [IO.Compression.ZipFile]::OpenRead($artifact.JarPath)
+        try {
+            foreach ($entry in $zip.Entries) {
+                if (-not $entry.FullName.EndsWith(".class")) { continue }
+                $reader = New-Object IO.StreamReader($entry.Open(), [Text.Encoding]::GetEncoding(28591))
+                try { $bytes = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                if ($bytes.Contains($needle)) {
+                    Write-Host "$($artifact.Loader) jar references $needle in $($entry.FullName)." -ForegroundColor Red
+                    return $false
+                }
+            }
+        } finally {
+            $zip.Dispose()
+        }
+    }
     return $true
 }
 
-# Boots a headless server on Quilt Loader with Fabric API and the freshly built jar.
-# Passes only if the server reaches "Done (" with small_logic_tweaks in the loaded mod list.
-function Test-QuiltBoot($Branch) {
-    $props = Read-GradleProperties $Branch.Worktree
-    $mcVersion = $props["minecraft_version"]
-    $fabricApi = $props["fabric_api_version"]
-    $loader = $QuiltTestLoader
-    $java = if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) { Join-Path $env:JAVA_HOME "bin\java.exe" } else { (Get-Command java -ErrorAction SilentlyContinue).Source }
-    if (-not $java) { Write-Host "java not found (set JAVA_HOME)." -ForegroundColor Red; return $false }
+function Get-Artifact($Branch, [string]$Loader) {
+    return @($Branch.Artifacts | Where-Object { $_.Loader -eq $Loader })[0]
+}
 
-    New-Item -ItemType Directory -Force $QuiltRoot | Out-Null
-    $installer = Join-Path $QuiltRoot "quilt-installer-$QuiltInstallerVersion.jar"
-    $fabricApiJar = Join-Path $QuiltRoot "fabric-api-$fabricApi.jar"
-    $serverDir = Join-Path $QuiltRoot "server-$mcVersion-$loader"
+function Get-Java {
+    if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME "bin\java.exe"))) { return Join-Path $env:JAVA_HOME "bin\java.exe" }
+    return (Get-Command java -ErrorAction SilentlyContinue).Source
+}
+
+function Save-Download([string]$Uri, [string]$OutFile) {
+    if (Test-Path $OutFile) { return $true }
     try {
-        if (-not (Test-Path $installer)) {
-            Invoke-WebRequest -UseBasicParsing -UserAgent $UserAgent -OutFile $installer `
-                -Uri "https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/$QuiltInstallerVersion/quilt-installer-$QuiltInstallerVersion.jar"
-        }
-        if (-not (Test-Path $fabricApiJar)) {
-            $encoded = [Uri]::EscapeDataString($fabricApi)
-            Invoke-WebRequest -UseBasicParsing -UserAgent $UserAgent -OutFile $fabricApiJar `
-                -Uri "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/$encoded/fabric-api-$encoded.jar"
-        }
+        Invoke-WebRequest -UseBasicParsing -UserAgent $UserAgent -Uri $Uri -OutFile $OutFile
+        return $true
     } catch {
-        Write-Host "Quilt test download failed: $($_.Exception.Message)" -ForegroundColor Red
-        Remove-Item $installer, $fabricApiJar -ErrorAction SilentlyContinue
+        Write-Host "Download failed: $Uri ($($_.Exception.Message))" -ForegroundColor Red
+        Remove-Item $OutFile -ErrorAction SilentlyContinue
         return $false
     }
+}
 
-    if (-not (Test-Path (Join-Path $serverDir "quilt-server-launch.jar"))) {
-        Write-Host "Installing Quilt Loader $loader server for Minecraft $mcVersion..." -ForegroundColor Cyan
-        & $java -jar $installer install server $mcVersion $loader --download-server "--install-dir=$serverDir" | Out-Host
-        if ($LASTEXITCODE -ne 0) { return $false }
+# Starts a prepared server directory with -Dslt.mixinAudit=true and stops it once it is up.
+# Passes only if the server reaches "Done (" AND the mod's mixin audit reports success, which proves the mod
+# initialized and every mixin target could be transformed on this loader.
+function Invoke-ServerBoot([string]$Label, [string]$ServerDir, [string]$JavaArgs) {
+    $java = Get-Java
+    foreach ($dir in @("world", "logs", "config", "crash-reports")) {
+        Remove-Item -Recurse -Force (Join-Path $ServerDir $dir) -ErrorAction SilentlyContinue
     }
-
-    foreach ($dir in @("mods", "world", "logs", "config", "crash-reports")) {
-        Remove-Item -Recurse -Force (Join-Path $serverDir $dir) -ErrorAction SilentlyContinue
-    }
-    $modsDir = Join-Path $serverDir "mods"
-    New-Item -ItemType Directory -Force $modsDir | Out-Null
-    Copy-Item $fabricApiJar $modsDir
-    Copy-Item $Branch.JarPath $modsDir
     # Throwaway local test server: accept the Minecraft EULA so it can boot.
-    Set-Content -Encoding ASCII (Join-Path $serverDir "eula.txt") "eula=true"
-    Set-Content -Encoding ASCII (Join-Path $serverDir "server.properties") @("server-port=25599", "online-mode=false")
+    Set-Content -Encoding ASCII (Join-Path $ServerDir "eula.txt") "eula=true"
+    Set-Content -Encoding ASCII (Join-Path $ServerDir "server.properties") @("server-port=25599", "online-mode=false")
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $java
-    $psi.Arguments = "-Xmx2G -jar quilt-server-launch.jar nogui"
-    $psi.WorkingDirectory = $serverDir
+    $psi.Arguments = "-Xmx2G -Dslt.mixinAudit=true $JavaArgs nogui"
+    $psi.WorkingDirectory = $ServerDir
     $psi.UseShellExecute = $false
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.CreateNoWindow = $true
 
-    Write-Host "Booting Quilt $loader server (MC $mcVersion, Fabric API $fabricApi)..." -ForegroundColor Cyan
+    Write-Host "Booting $Label server..." -ForegroundColor Cyan
     $proc = [System.Diagnostics.Process]::Start($psi)
     $stdout = $proc.StandardOutput.ReadToEndAsync()
     $stderr = $proc.StandardError.ReadToEndAsync()
-    $logFile = Join-Path $serverDir "logs\latest.log"
+    $logFile = Join-Path $ServerDir "logs\latest.log"
     $deadline = (Get-Date).AddSeconds(300)
     $ready = $false
+    $audited = $false
     while (-not $proc.HasExited -and (Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 2
-        if ((Read-SharedText $logFile) -match 'Done \(') { $ready = $true; break }
+        $log = Read-SharedText $logFile
+        if (-not $ready -and $log -match 'Done \(') {
+            $ready = $true
+            $deadline = (Get-Date).AddSeconds(60)   # the audit runs right after the server has started
+        }
+        if ($log.Contains($MixinAuditMarker)) { $audited = $true; break }
     }
     if (-not $proc.HasExited) {
         try { $proc.StandardInput.WriteLine("stop"); $proc.StandardInput.Flush() } catch { }
@@ -262,17 +312,74 @@ function Test-QuiltBoot($Branch) {
     }
     $proc.WaitForExit()
     $console = $stdout.Result + $stderr.Result
-    $consoleFile = Join-Path $serverDir "console.log"
+    $consoleFile = Join-Path $ServerDir "console.log"
     Set-Content -Encoding UTF8 $consoleFile $console
 
-    $modLoaded = $console -match 'small_logic_tweaks'
-    if ($ready -and $modLoaded) {
-        Write-Host "Quilt boot test passed." -ForegroundColor Green
+    if ($ready -and $audited) {
+        Write-Host "$Label boot test passed (server started, mixin audit passed)." -ForegroundColor Green
         return $true
     }
-    Write-Host "Quilt boot test failed (ready=$ready, modLoaded=$modLoaded). Full log: $consoleFile" -ForegroundColor Red
-    ($console -split "`r?`n" | Where-Object { $_ -match 'ERROR|Exception|Caused by|Incompatible' } | Select-Object -First 15) | Out-Host
+    Write-Host "$Label boot test failed (started=$ready, mixinAudit=$audited). Full log: $consoleFile" -ForegroundColor Red
+    ($console -split "`r?`n" | Where-Object { $_ -match 'ERROR|Exception|Caused by|Incompatible|Mixin audit' } | Select-Object -First 15) | Out-Host
     return $false
+}
+
+# Quilt: Quilt Loader + Fabric API + the Fabric jar
+function Test-QuiltBoot($Branch) {
+    $props = Read-GradleProperties $Branch.Worktree
+    $mcVersion = $props["minecraft_version"]
+    $fabricApi = $props["fabric_api_version"]
+    $loader = $QuiltTestLoader
+    $java = Get-Java
+    if (-not $java) { Write-Host "java not found (set JAVA_HOME)." -ForegroundColor Red; return $false }
+
+    New-Item -ItemType Directory -Force $QuiltRoot | Out-Null
+    $installer = Join-Path $QuiltRoot "quilt-installer-$QuiltInstallerVersion.jar"
+    $fabricApiJar = Join-Path $QuiltRoot "fabric-api-$fabricApi.jar"
+    $serverDir = Join-Path $QuiltRoot "server-$mcVersion-$loader"
+    $encoded = [Uri]::EscapeDataString($fabricApi)
+    if (-not (Save-Download "https://maven.quiltmc.org/repository/release/org/quiltmc/quilt-installer/$QuiltInstallerVersion/quilt-installer-$QuiltInstallerVersion.jar" $installer)) { return $false }
+    if (-not (Save-Download "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/$encoded/fabric-api-$encoded.jar" $fabricApiJar)) { return $false }
+
+    if (-not (Test-Path (Join-Path $serverDir "quilt-server-launch.jar"))) {
+        Write-Host "Installing Quilt Loader $loader server for Minecraft $mcVersion..." -ForegroundColor Cyan
+        & $java -jar $installer install server $mcVersion $loader --download-server "--install-dir=$serverDir" | Out-Host
+        if ($LASTEXITCODE -ne 0) { return $false }
+    }
+    $modsDir = Join-Path $serverDir "mods"
+    Remove-Item -Recurse -Force $modsDir -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $modsDir | Out-Null
+    Copy-Item $fabricApiJar $modsDir
+    Copy-Item (Get-Artifact $Branch "fabric").JarPath $modsDir
+    return Invoke-ServerBoot "Quilt $loader (MC $mcVersion, Fabric API $fabricApi)" $serverDir "-jar quilt-server-launch.jar"
+}
+
+# NeoForge: official NeoForge server (version from the branch's gradle.properties) + the NeoForge jar
+function Test-NeoForgeBoot($Branch) {
+    $props = Read-GradleProperties $Branch.Worktree
+    $neoforge = $props["neoforge_version"]
+    if (-not $neoforge) { Write-Host "neoforge_version missing from gradle.properties." -ForegroundColor Red; return $false }
+    $java = Get-Java
+    if (-not $java) { Write-Host "java not found (set JAVA_HOME)." -ForegroundColor Red; return $false }
+
+    New-Item -ItemType Directory -Force $NeoForgeRoot | Out-Null
+    $installer = Join-Path $NeoForgeRoot "neoforge-$neoforge-installer.jar"
+    $serverDir = Join-Path $NeoForgeRoot "server-$neoforge"
+    $argsFile = "libraries/net/neoforged/neoforge/$neoforge/win_args.txt"
+    if (-not (Save-Download "https://maven.neoforged.net/releases/net/neoforged/neoforge/$neoforge/neoforge-$neoforge-installer.jar" $installer)) { return $false }
+
+    if (-not (Test-Path (Join-Path $serverDir $argsFile))) {
+        Write-Host "Installing NeoForge $neoforge server..." -ForegroundColor Cyan
+        New-Item -ItemType Directory -Force $serverDir | Out-Null
+        Push-Location $serverDir
+        try { & $java -jar $installer --install-server $serverDir | Out-Host } finally { Pop-Location }
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $serverDir $argsFile))) { return $false }
+    }
+    $modsDir = Join-Path $serverDir "mods"
+    Remove-Item -Recurse -Force $modsDir -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $modsDir | Out-Null
+    Copy-Item (Get-Artifact $Branch "neoforge").JarPath $modsDir
+    return Invoke-ServerBoot "NeoForge $neoforge" $serverDir "@$argsFile"
 }
 
 # $true = exists, $false = not found, $null = could not tell
@@ -285,6 +392,79 @@ function Test-ModrinthVersion([string]$Version) {
         if ((Get-HttpStatus $_) -eq 404) { return $false }
         Write-Host "Could not query Modrinth ($($_.Exception.Message))." -ForegroundColor Yellow
         return $null
+    }
+}
+
+# ------------------------------------------------------------------------------
+# CurseForge: upload API (X-Api-Token, CURSEFORGE_TOKEN) + Core API to detect duplicates (x-api-key, CURSEFORGE_API_KEY)
+# ------------------------------------------------------------------------------
+
+# Maps "26.3" / "fabric" / "neoforge" / "quilt" to CurseForge game version ids (cached for the run).
+function Get-CurseForgeVersionIds([string]$MinecraftVersion, [string[]]$Loaders) {
+    if (-not $script:CurseForgeVersions) {
+        $headers = @{ "X-Api-Token" = $CurseForgeToken }
+        $types = Invoke-RestMethod -UserAgent $UserAgent -TimeoutSec 30 -Headers $headers -Uri "https://minecraft.curseforge.com/api/game/version-types"
+        $script:CurseForgeTypeSlugs = @{}
+        foreach ($t in $types) { $script:CurseForgeTypeSlugs[[int]$t.id] = "$($t.slug)" }
+        $script:CurseForgeVersions = @(Invoke-RestMethod -UserAgent $UserAgent -TimeoutSec 30 -Headers $headers -Uri "https://minecraft.curseforge.com/api/game/versions")
+    }
+    $ids = @()
+    $mc = @($script:CurseForgeVersions | Where-Object { $_.name -eq $MinecraftVersion -and $script:CurseForgeTypeSlugs[[int]$_.gameVersionTypeID] -like "minecraft*" })
+    if (-not $mc) { throw "CurseForge has no game version '$MinecraftVersion'." }
+    $ids += [int]$mc[0].id
+    $names = @{ "fabric" = "Fabric"; "quilt" = "Quilt"; "neoforge" = "NeoForge" }
+    foreach ($loader in $Loaders) {
+        $match = @($script:CurseForgeVersions | Where-Object { $_.name -eq $names[$loader] -and $script:CurseForgeTypeSlugs[[int]$_.gameVersionTypeID] -eq "modloader" })
+        if (-not $match) { throw "CurseForge has no mod loader '$($names[$loader])'." }
+        $ids += [int]$match[0].id
+    }
+    return $ids
+}
+
+# $true = a file with this display name exists, $false = not found, $null = could not tell
+function Test-CurseForgeFile([string]$DisplayName, [string]$MinecraftVersion) {
+    if (-not $CurseForgeApiKey) { return $null }
+    try {
+        $uri = "https://api.curseforge.com/v1/mods/$CurseForgeProject/files?gameVersion=$([Uri]::EscapeDataString($MinecraftVersion))&pageSize=50"
+        $files = Invoke-RestMethod -UserAgent $UserAgent -TimeoutSec 15 -Headers @{ "x-api-key" = $CurseForgeApiKey } -Uri $uri
+        return [bool](@($files.data) | Where-Object { $_.displayName -eq $DisplayName })
+    } catch {
+        Write-Host "Could not query CurseForge ($($_.Exception.Message))." -ForegroundColor Yellow
+        return $null
+    }
+}
+
+function Publish-CurseForgeFile($Branch, $Artifact) {
+    Add-Type -AssemblyName System.Net.Http
+    $metadata = [ordered]@{
+        changelog     = $Branch.Info.changelog
+        changelogType = "markdown"
+        displayName   = $Artifact.VersionName
+        gameVersions  = @(Get-CurseForgeVersionIds $Branch.Info.minecraftVersion $Artifact.ModrinthLoaders)
+        releaseType   = $Artifact.VersionType
+    }
+    if ($Artifact.Loader -eq "fabric") {
+        $metadata["relations"] = @{ projects = @(@{ slug = "fabric-api"; type = "requiredDependency" }) }
+    }
+    $json = $metadata | ConvertTo-Json -Depth 6
+
+    $client = New-Object System.Net.Http.HttpClient
+    $stream = [IO.File]::OpenRead($Artifact.JarPath)
+    try {
+        $client.DefaultRequestHeaders.Add("X-Api-Token", $CurseForgeToken)
+        $client.DefaultRequestHeaders.Add("User-Agent", $UserAgent)
+        $form = New-Object System.Net.Http.MultipartFormDataContent
+        $form.Add((New-Object System.Net.Http.StringContent($json, [Text.Encoding]::UTF8, "application/json")), "metadata")
+        $file = New-Object System.Net.Http.StreamContent($stream)
+        $file.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("application/java-archive")
+        $form.Add($file, "file", [IO.Path]::GetFileName($Artifact.JarPath))
+        $response = $client.PostAsync("https://minecraft.curseforge.com/api/projects/$CurseForgeProject/upload-file", $form).Result
+        if (-not $response.IsSuccessStatusCode) {
+            throw "HTTP $([int]$response.StatusCode): $($response.Content.ReadAsStringAsync().Result)"
+        }
+    } finally {
+        $stream.Dispose()
+        $client.Dispose()
     }
 }
 
@@ -322,7 +502,7 @@ function Publish-Git($Branch, [string]$Tag) {
     return ($LASTEXITCODE -eq 0)
 }
 
-# Creates the release as a draft, attaches the jar, then publishes it.
+# Creates the release as a draft, attaches every loader jar, then publishes it.
 # On failure the draft is deleted so a rerun starts clean (drafts are not found by tag lookups).
 function Publish-GitHubRelease($Branch, [string]$Tag) {
     $api = "https://api.github.com/repos/$GitHubRepo"
@@ -332,14 +512,16 @@ function Publish-GitHubRelease($Branch, [string]$Tag) {
         name             = $Branch.Info.versionName
         body             = $Branch.Info.changelog
         draft            = $true
-        prerelease       = ($Branch.Info.versionType -ne "release")
+        prerelease       = (@($Branch.Artifacts | Where-Object { $_.VersionType -ne "release" }).Count -eq $Branch.Artifacts.Count)
     } | ConvertTo-Json
     $release = Invoke-RestMethod -Method Post -Uri "$api/releases" -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
         -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($json))
     try {
-        $uploadUrl = ($release.upload_url -replace '\{.*\}$', '') + "?name=" + [Uri]::EscapeDataString((Split-Path -Leaf $Branch.JarPath))
-        Invoke-RestMethod -Method Post -Uri $uploadUrl -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
-            -ContentType "application/java-archive" -InFile $Branch.JarPath | Out-Null
+        foreach ($artifact in $Branch.Artifacts) {
+            $uploadUrl = ($release.upload_url -replace '\{.*\}$', '') + "?name=" + [Uri]::EscapeDataString((Split-Path -Leaf $artifact.JarPath))
+            Invoke-RestMethod -Method Post -Uri $uploadUrl -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
+                -ContentType "application/java-archive" -InFile $artifact.JarPath | Out-Null
+        }
         $publish = @{ draft = $false } | ConvertTo-Json
         Invoke-RestMethod -Method Patch -Uri "$api/releases/$($release.id)" -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
             -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($publish)) | Out-Null
@@ -359,10 +541,10 @@ function Write-Cell([string]$Text, [int]$Width) {
 }
 
 function Write-Summary {
-    Write-Host "`n======================================================================================================" -ForegroundColor Green
+    Write-Host "`n======================================================================================================================" -ForegroundColor Green
     Write-Host " VERIFICATION (all branches)" -ForegroundColor Green
-    Write-Host "======================================================================================================" -ForegroundColor Green
-    Write-Host (" {0,-8} | {1,-8} | {2,-26} | {3,-9} | {4,-9} | {5,-9} | {6,-9} | {7,-9} | {8,-9} |" -f "Branch", "Commit", "Version [type]", "Changelog", "Compile", "JUnit", "GameTest", "Package", "Quilt")
+    Write-Host "======================================================================================================================" -ForegroundColor Green
+    Write-Host (" {0,-8} | {1,-8} | {2,-26} | {3,-9} | {4,-9} | {5,-9} | {6,-9} | {7,-9} | {8,-9} | {9,-9} |" -f "Branch", "Commit", "Version [type]", "Changelog", "Compile", "JUnit", "GameTest", "Package", "Quilt", "NeoForge")
     foreach ($b in $Branches) {
         $version = if ($b.Info) { "$($b.Info.modVersion) [$($b.Info.versionType)]" } elseif ($b.ModVersion) { $b.ModVersion } else { "N/A" }
         $commit = if ($b.Sha) { $b.Sha.Substring(0, 7) } else { "N/A" }
@@ -372,12 +554,22 @@ function Write-Summary {
     }
 
     Write-Host "`n RELEASE ($(if ($DryRun) { 'dry run: planned actions, nothing was sent' } else { 'deploy: true branches' }))" -ForegroundColor Green
-    Write-Host (" {0,-8} | {1,-16} | {2,-16} | {3,-16} | {4,-16} |" -f "Branch", "Loaders", "Git push + tag", "Modrinth", "GitHub")
+    Write-Host (" {0,-8} | {1,-30} | {2,-15} | {3,-16} | {4,-16} | {5,-16} | {6,-16} |" -f "Branch", "Version [type]", "Loader tags", "Git push + tag", "Modrinth", "CurseForge", "GitHub")
     foreach ($b in $Branches) {
         if (-not $b.Deploy) { continue }
-        Write-Host (" {0,-8} | {1,-16} |" -f $b.Name, ($b.Loaders -join ",")) -NoNewline
-        foreach ($stage in $ReleaseStages) { Write-Cell $b.Status[$stage] 16 }
-        Write-Host ""
+        if (-not $b.Artifacts) {
+            Write-Host (" {0,-8} | {1,-30} | {2,-15} |" -f $b.Name, "N/A", ($b.Loaders -join ",")) -NoNewline
+            foreach ($stage in @("Push") + $ArtifactStages + @("GitHub")) { Write-Cell "Skipped" 16 }
+            Write-Host ""
+            continue
+        }
+        foreach ($a in $b.Artifacts) {
+            Write-Host (" {0,-8} | {1,-30} | {2,-15} |" -f $b.Name, "$($a.VersionNumber) [$($a.VersionType)]", ($a.ModrinthLoaders -join ",")) -NoNewline
+            Write-Cell $b.Status["Push"] 16
+            foreach ($stage in $ArtifactStages) { Write-Cell $a.Status[$stage] 16 }
+            Write-Cell $b.Status["GitHub"] 16
+            Write-Host ""
+        }
     }
     if (-not @($Branches | Where-Object { $_.Deploy })) { Write-Host " (no branch has `"deploy`": true)" -ForegroundColor DarkGray }
 
@@ -386,7 +578,7 @@ function Write-Summary {
         $lines = @($b.Info.changelog -split "`n")
         Write-Host "`n [$($b.Name)] v$($b.Info.modVersion) changelog ($($lines.Count) lines): $($lines[0])" -ForegroundColor Cyan
     }
-    Write-Host "======================================================================================================" -ForegroundColor Green
+    Write-Host "======================================================================================================================" -ForegroundColor Green
 }
 
 # ==============================================================================
@@ -401,9 +593,11 @@ try {
 }
 
 $ModrinthEnabled = [bool]$Config.platforms.modrinth.enabled
+$CurseForgeEnabled = [bool]$Config.platforms.curseforge.enabled
 $GitHubEnabled = [bool]$Config.platforms.github.enabled
 $GitPushEnabled = [bool]$Config.platforms.git_push.enabled
 $ModrinthProject = if ($Config.platforms.modrinth.project) { "$($Config.platforms.modrinth.project)" } else { "small-logic-tweak" }
+$CurseForgeProject = "$($Config.platforms.curseforge.project_id)"
 $GitHubRepo = "$($Config.platforms.github.repo)"
 $GitRemote = if ($Config.platforms.git_push.remote) { "$($Config.platforms.git_push.remote)" } else { "origin" }
 $QuiltTestLoader = "$($Config.quilt_test_loader)"
@@ -417,7 +611,8 @@ foreach ($entry in @($Config.branches)) {
     foreach ($loader in $loaders) {
         if ($KnownLoaders -notcontains $loader) { Stop-Pipeline "Branch '$name': unknown loader '$loader' (allowed: $($KnownLoaders -join ', '))." }
     }
-    if ($loaders -notcontains "fabric") { Stop-Pipeline "Branch '$name': loaders must include 'fabric'." }
+    if (($loaders -contains "quilt") -and ($loaders -notcontains "fabric")) { Stop-Pipeline "Branch '$name': 'quilt' is a tag on the Fabric jar and needs 'fabric'." }
+    if (-not (($loaders -contains "fabric") -or ($loaders -contains "neoforge"))) { Stop-Pipeline "Branch '$name': loaders must include 'fabric' or 'neoforge'." }
 
     $status = [ordered]@{}
     foreach ($stage in $VerifyStages + $ReleaseStages) { $status[$stage] = "-" }
@@ -429,7 +624,7 @@ foreach ($entry in @($Config.branches)) {
         Worktree   = $null
         ModVersion = $null
         Info       = $null
-        JarPath    = $null
+        Artifacts  = @()
         Status     = $status
     }
 }
@@ -445,15 +640,22 @@ if ($GitHubEnabled -and -not $GitPushEnabled) {
 if ($GitHubEnabled -and $GitHubRepo -notmatch '^[^/\s]+/[^/\s]+$') {
     Stop-Pipeline "platforms.github.repo must look like 'owner/repo'."
 }
+if ($CurseForgeEnabled -and $CurseForgeProject -notmatch '^[1-9][0-9]*$') {
+    Stop-Pipeline "platforms.curseforge.project_id must be the numeric CurseForge project id."
+}
 if (-not $DryRun) {
     if ($DeployBranches.Count -eq 0) { Stop-Pipeline "No branch has `"deploy`": true. Nothing to release (use -DryRun to only verify)." }
-    if (-not ($ModrinthEnabled -or $GitHubEnabled -or $GitPushEnabled)) { Stop-Pipeline "Every platform is disabled in $ConfigPath." }
+    if (-not ($ModrinthEnabled -or $CurseForgeEnabled -or $GitHubEnabled -or $GitPushEnabled)) { Stop-Pipeline "Every platform is disabled in $ConfigPath." }
 }
 
 $ModrinthToken = Get-Secret "MODRINTH_TOKEN"
+$CurseForgeToken = Get-Secret "CURSEFORGE_TOKEN"
+$CurseForgeApiKey = Get-Secret "CURSEFORGE_API_KEY"
 $GitHubToken = Get-Secret "GITHUB_TOKEN"
 if (-not $DryRun) {
     if ($ModrinthEnabled -and -not $ModrinthToken) { Stop-Pipeline "platforms.modrinth is enabled but MODRINTH_TOKEN is not set." }
+    if ($CurseForgeEnabled -and -not $CurseForgeToken) { Stop-Pipeline "platforms.curseforge is enabled but CURSEFORGE_TOKEN (upload token) is not set." }
+    if ($CurseForgeEnabled -and -not $CurseForgeApiKey) { Stop-Pipeline "platforms.curseforge is enabled but CURSEFORGE_API_KEY (Core API key, used to detect duplicate uploads) is not set." }
     if ($GitHubEnabled -and -not $GitHubToken) { Stop-Pipeline "platforms.github is enabled but GITHUB_TOKEN is not set." }
 }
 
@@ -461,6 +663,18 @@ foreach ($b in $Branches) {
     $sha = git -C $RepoRoot rev-parse --verify --quiet "refs/heads/$($b.Name)"
     if (-not $sha) { Stop-Pipeline "Local branch '$($b.Name)' does not exist." }
     $b.Sha = "$sha".Trim()
+}
+
+# CurseForge game version ids must resolve for every released branch before anything is built
+if ($CurseForgeEnabled -and $DeployBranches.Count -gt 0) {
+    if (-not $CurseForgeToken) {
+        Write-Host "WARNING: CURSEFORGE_TOKEN not set; CurseForge game versions not checked in this dry run." -ForegroundColor Yellow
+    } else {
+        foreach ($b in $DeployBranches) {
+            try { Get-CurseForgeVersionIds $b.Name @($b.Loaders) | Out-Null }
+            catch { Stop-Pipeline "Branch '$($b.Name)': $($_.Exception.Message)" }
+        }
+    }
 }
 
 if ($GitPushEnabled -and $DeployBranches.Count -gt 0) {
@@ -489,9 +703,9 @@ if ($currentBranch -and @($DeployBranches | Where-Object { $_.Name -eq $currentB
 }
 
 Write-Host "`nMode: $(if ($DryRun) { 'DRY RUN (verify + preview only)' } else { 'RELEASE' })" -ForegroundColor Cyan
-Write-Host "Verify : $(($Branches | ForEach-Object { $_.Name }) -join ', ')" -ForegroundColor Cyan
+Write-Host "Verify : $(($Branches | ForEach-Object { "$($_.Name) [$($_.Loaders -join ',')]" }) -join ', ')" -ForegroundColor Cyan
 Write-Host "Deploy : $(if ($DeployBranches.Count) { ($DeployBranches | ForEach-Object { $_.Name }) -join ', ' } else { '(none)' })" -ForegroundColor Cyan
-Write-Host "Targets: Modrinth=$ModrinthEnabled ($ModrinthProject), GitHub=$GitHubEnabled ($GitHubRepo), GitPush=$GitPushEnabled ($GitRemote)" -ForegroundColor Cyan
+Write-Host "Targets: Modrinth=$ModrinthEnabled ($ModrinthProject), CurseForge=$CurseForgeEnabled ($CurseForgeProject), GitHub=$GitHubEnabled ($GitHubRepo), GitPush=$GitPushEnabled ($GitRemote)" -ForegroundColor Cyan
 Write-Host "Worktrees: $WorktreeRoot" -ForegroundColor Cyan
 
 function Invoke-Pipeline {
@@ -516,12 +730,15 @@ function Invoke-Pipeline {
         if ($passed -and ($b.Loaders -contains "quilt")) {
             $passed = Invoke-Stage $b "Quilt" { Test-QuiltBoot $b }
         }
+        if ($passed -and ($b.Loaders -contains "neoforge")) {
+            $passed = Invoke-Stage $b "NeoForge" { Test-NeoForgeBoot $b }
+        }
 
         if ($passed) {
             Write-Host "Branch $($b.Name) VERIFICATION PASSED." -ForegroundColor Green
         } else {
             $verificationFailed = $true
-            $applicable = @($VerifyStages | Where-Object { $_ -ne "Quilt" -or ($b.Loaders -contains "quilt") })
+            $applicable = @($VerifyStages | Where-Object { ($_ -ne "Quilt" -or ($b.Loaders -contains "quilt")) -and ($_ -ne "NeoForge" -or ($b.Loaders -contains "neoforge")) })
             Set-SkippedStages $b $applicable
         }
     }
@@ -547,10 +764,16 @@ function Invoke-Pipeline {
         foreach ($b in $DeployBranches) {
             $tag = "v$($b.Info.modVersion)"
             $b.Status["Push"] = if ($GitPushEnabled) { "Planned" } else { "Off" }
-            if ($ModrinthEnabled) {
-                $exists = Test-ModrinthVersion $b.Info.modVersion
-                $b.Status["Modrinth"] = if ($exists -eq $true) { "Exists" } elseif ($exists -eq $false) { "Planned" } else { "Planned (?)" }
-            } else { $b.Status["Modrinth"] = "Off" }
+            foreach ($a in $b.Artifacts) {
+                if ($ModrinthEnabled) {
+                    $exists = Test-ModrinthVersion $a.VersionNumber
+                    $a.Status["Modrinth"] = if ($exists -eq $true) { "Exists" } elseif ($exists -eq $false) { "Planned" } else { "Planned (?)" }
+                } else { $a.Status["Modrinth"] = "Off" }
+                if ($CurseForgeEnabled) {
+                    $exists = Test-CurseForgeFile $a.VersionName $b.Info.minecraftVersion
+                    $a.Status["CurseForge"] = if ($exists -eq $true) { "Exists" } elseif ($exists -eq $false) { "Planned" } else { "Planned (?)" }
+                } else { $a.Status["CurseForge"] = "Off" }
+            }
             if ($GitHubEnabled) {
                 $exists = Test-GitHubRelease $tag
                 $b.Status["GitHub"] = if ($exists -eq $true) { "Exists" } elseif ($exists -eq $false) { "Planned" } else { "Planned (?)" }
@@ -561,11 +784,12 @@ function Invoke-Pipeline {
 
     # ==============================================================================
     # PHASE 2: RELEASE ("deploy": true branches only, exact verified commit)
+    # Order per branch: git push + tag -> Modrinth -> CurseForge -> GitHub Release
     # ==============================================================================
     $env:MODRINTH_TOKEN = $ModrinthToken
     foreach ($b in $DeployBranches) {
         Write-Host "`n--------------------------------------------------" -ForegroundColor Yellow
-        Write-Host " Releasing branch: $($b.Name) -> $($b.Info.modVersion) [$($b.Info.versionType)]" -ForegroundColor Yellow
+        Write-Host " Releasing branch: $($b.Name) -> $($b.Info.modVersion) ($(($b.Artifacts | ForEach-Object { $_.Loader }) -join ', '))" -ForegroundColor Yellow
         Write-Host "--------------------------------------------------" -ForegroundColor Yellow
 
         $tag = "v$($b.Info.modVersion)"
@@ -573,6 +797,7 @@ function Invoke-Pipeline {
         if ($currentSha -ne $b.Sha) {
             Write-Host "Branch $($b.Name) moved during verification ($($b.Sha.Substring(0, 7)) -> $currentSha). Not releasing an unverified commit." -ForegroundColor Red
             foreach ($stage in $ReleaseStages) { $b.Status[$stage] = "Failed (moved)" }
+            foreach ($a in $b.Artifacts) { foreach ($stage in $ArtifactStages) { $a.Status[$stage] = "Failed (moved)" } }
             $script:ExitCode = 1
             continue
         }
@@ -585,25 +810,52 @@ function Invoke-Pipeline {
             } else {
                 $b.Status["Push"] = "Failed"
                 Set-SkippedStages $b $ReleaseStages
+                foreach ($a in $b.Artifacts) { foreach ($stage in $ArtifactStages) { $a.Status[$stage] = "Skipped" } }
                 $script:ExitCode = 1
                 continue
             }
         } else { $b.Status["Push"] = "Off" }
 
-        # 2. Modrinth (Minotaur task in build.gradle, fed by ORG_GRADLE_PROJECT_* release properties)
-        if ($ModrinthEnabled) {
-            if ((Test-ModrinthVersion $b.Info.modVersion) -eq $true) {
-                Write-Host "Version $($b.Info.modVersion) already exists on Modrinth. Skipping upload." -ForegroundColor Yellow
-                $b.Status["Modrinth"] = "Skipped (Exists)"
-            } elseif (Invoke-Gradle $b @("modrinth")) {
-                $b.Status["Modrinth"] = "Success"
-            } else {
-                $b.Status["Modrinth"] = "Failed"
-                $script:ExitCode = 1
-            }
-        } else { $b.Status["Modrinth"] = "Off" }
+        foreach ($a in $b.Artifacts) {
+            # 2. Modrinth (Minotaur task of the loader module, fed by ORG_GRADLE_PROJECT_* release properties)
+            if ($ModrinthEnabled) {
+                $task = if ($a.Project) { "$($a.Project):modrinth" } else { "modrinth" }
+                if ((Test-ModrinthVersion $a.VersionNumber) -eq $true) {
+                    Write-Host "Version $($a.VersionNumber) already exists on Modrinth. Skipping upload." -ForegroundColor Yellow
+                    $a.Status["Modrinth"] = "Skipped (Exists)"
+                } elseif (Invoke-Gradle $b @($task)) {
+                    $a.Status["Modrinth"] = "Success"
+                } else {
+                    $a.Status["Modrinth"] = "Failed"
+                    $script:ExitCode = 1
+                }
+            } else { $a.Status["Modrinth"] = "Off" }
 
-        # 3. GitHub Release with the jar attached
+            # 3. CurseForge
+            if ($CurseForgeEnabled) {
+                $exists = Test-CurseForgeFile $a.VersionName $b.Info.minecraftVersion
+                if ($exists -eq $true) {
+                    Write-Host "'$($a.VersionName)' already exists on CurseForge. Skipping upload." -ForegroundColor Yellow
+                    $a.Status["CurseForge"] = "Skipped (Exists)"
+                } elseif ($null -eq $exists) {
+                    Write-Host "Cannot tell whether '$($a.VersionName)' is already on CurseForge; not uploading blind." -ForegroundColor Red
+                    $a.Status["CurseForge"] = "Failed (check)"
+                    $script:ExitCode = 1
+                } else {
+                    try {
+                        Write-Host "Uploading $($a.VersionName) to CurseForge..." -ForegroundColor Cyan
+                        Publish-CurseForgeFile $b $a
+                        $a.Status["CurseForge"] = "Success"
+                    } catch {
+                        Write-Host "CurseForge upload failed: $($_.Exception.Message)" -ForegroundColor Red
+                        $a.Status["CurseForge"] = "Failed"
+                        $script:ExitCode = 1
+                    }
+                }
+            } else { $a.Status["CurseForge"] = "Off" }
+        }
+
+        # 4. GitHub Release with every loader jar attached
         if ($GitHubEnabled) {
             $exists = Test-GitHubRelease $tag
             if ($exists -eq $true) {
