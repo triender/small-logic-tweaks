@@ -837,7 +837,9 @@ public class Gametest {
                 heatAt30[0] = (int) field.get(potato);
                 helper.assertTrue(heatAt30[0] > 0, "Cook timer should have increased after 30 ticks near magma");
                 
-                potato.setPos(absTrapdoorPos.getX() + 10.0, absTrapdoorPos.getY() + 5.0, absTrapdoorPos.getZ() + 10.0);
+                // Stay inside the test area: moving the item far away could drop it into a chunk that is not
+                // entity-ticking, freezing the timer instead of letting it decay (flaky failure with heat == initial)
+                potato.setPos(absTrapdoorPos.getX() + 3.5, absTrapdoorPos.getY() + 0.2, absTrapdoorPos.getZ() + 0.5);
             } catch (Exception e) {
                 helper.fail("Reflection error: " + e.getMessage());
             }
