@@ -1,0 +1,72 @@
+plugins {
+	id 'net.fabricmc.fabric-loom'
+	id 'jacoco'
+}
+
+// [VI] Module common: code trung lập loader. Classpath chỉ có Minecraft (MC 26.x không obfuscate, tên Mojang dùng chung
+//      cho mọi loader) và annotation Mixin — KHÔNG có Fabric Loader/Fabric API/NeoForge, nên import nhầm API loader sẽ lỗi biên dịch.
+//      Loom ở đây chỉ dùng để cung cấp jar Minecraft; module này không sinh jar phát hành.
+// [EN] Common module: loader-neutral code. The classpath only holds Minecraft (MC 26.x is unobfuscated, so Mojang names are
+//      shared by every loader) and Mixin annotations — NO Fabric Loader/Fabric API/NeoForge, so importing a loader API fails to compile.
+//      Loom is only used here to provide the Minecraft jar; this module produces no release jar.
+
+base {
+	archivesName = "${rootProject.name}-common"
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+	// Mixin annotations only; each loader ships its own Mixin runtime
+	compileOnly "net.fabricmc:sponge-mixin:${project.mixin_version}"
+
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+loom {
+	runConfigs.configureEach {
+		ideConfigGenerated = false
+	}
+}
+
+// [VI] Xuất source/resource của common để các module loader biên dịch kèm (mẫu MultiLoader, không dùng jar-in-jar)
+// [EN] Expose common's sources/resources so loader modules compile them in (MultiLoader pattern, no jar-in-jar)
+configurations {
+	commonJava {
+		canBeResolved = false
+		canBeConsumed = true
+	}
+	commonResources {
+		canBeResolved = false
+		canBeConsumed = true
+	}
+}
+
+artifacts {
+	commonJava sourceSets.main.java.sourceDirectories.singleFile
+	commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+
+	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
+	testLogging {
+		events "passed", "skipped", "failed"
+	}
+}
+
+jacoco {
+	toolVersion = "0.8.12"
+}
+
+jacocoTestReport {
+	dependsOn test
+	executionData fileTree(layout.buildDirectory).include("jacoco/*.exec")
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}

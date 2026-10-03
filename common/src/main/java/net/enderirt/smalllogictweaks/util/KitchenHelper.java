@@ -1,6 +1,6 @@
 package net.enderirt.smalllogictweaks.util;
 
-import net.enderirt.smalllogictweaks.SmallLogicTweaks;
+import net.enderirt.smalllogictweaks.SmallLogicTweaksCommon;
 import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,7 +31,7 @@ public final class KitchenHelper {
 
     public static final TagKey<Item> MAGMA_COOKABLE = TagKey.create(
             Registries.ITEM,
-            Identifier.fromNamespaceAndPath(SmallLogicTweaks.MOD_ID, "magma_cookable")
+            Identifier.fromNamespaceAndPath(SmallLogicTweaksCommon.MOD_ID, "magma_cookable")
     );
 
     private static final Map<Item, Boolean> COOKABLE_CACHE = new ConcurrentHashMap<>();
@@ -80,7 +80,7 @@ public final class KitchenHelper {
                 hasSmelting = recipeManager.getRecipeFor(RecipeType.SMELTING, input, level).isPresent();
             } catch (Exception e) {
                 if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                    SmallLogicTweaks.LOGGER.debug("Failed to query smelting recipe for {}", key, e);
+                    SmallLogicTweaksCommon.LOGGER.debug("Failed to query smelting recipe for {}", key, e);
                 }
             }
         }
@@ -117,7 +117,7 @@ public final class KitchenHelper {
                 }
             } catch (Exception e) {
                 if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
-                    SmallLogicTweaks.LOGGER.debug("Failed to assemble smelting recipe for {}", rawKey, e);
+                    SmallLogicTweaksCommon.LOGGER.debug("Failed to assemble smelting recipe for {}", rawKey, e);
                 }
             }
         }

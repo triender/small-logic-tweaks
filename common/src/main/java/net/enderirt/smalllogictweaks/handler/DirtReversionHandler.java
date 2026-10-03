@@ -1,6 +1,6 @@
 package net.enderirt.smalllogictweaks.handler;
 
-import net.enderirt.smalllogictweaks.SmallLogicTweaks;
+import net.enderirt.smalllogictweaks.SmallLogicTweaksCommon;
 import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -37,7 +37,7 @@ public final class DirtReversionHandler {
      */
     public static final TagKey<Block> PICKAXE_REVERSION_BLOCKS = TagKey.create(
             Registries.BLOCK,
-            Identifier.fromNamespaceAndPath(SmallLogicTweaks.MOD_ID, "pickaxe_reversion")
+            Identifier.fromNamespaceAndPath(SmallLogicTweaksCommon.MOD_ID, "pickaxe_reversion")
     );
 
     private DirtReversionHandler() {}

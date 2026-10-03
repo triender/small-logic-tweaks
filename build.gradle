@@ -1,159 +1,28 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
-	id 'maven-publish'
-	id 'jacoco'
-	id "com.modrinth.minotaur" version "2.9.0"
+	id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+	id 'com.modrinth.minotaur' version "2.9.0" apply false
 }
 
-version = project.mod_version
-group = project.maven_group
-
-repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+// [VI] Cấu hình dùng chung cho mọi module (common + từng loader). Logic changelog/phát hành nằm ở root
+//      để mọi loader dùng chung một nguồn sự thật.
+// [EN] Shared configuration for every module (common + each loader). Changelog/release logic lives at the root
+//      so every loader reads the same source of truth.
+allprojects {
+	version = project.mod_version
+	group = project.maven_group
 }
 
-fabricApi {
-	configureDataGeneration {
-		client = true
-	}
-}
+subprojects {
+	apply plugin: 'java'
 
-dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-
-	// Cung cấp API để viết test
-	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
-	// Cung cấp Engine để chạy test
-	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-	// Cung cấp Launcher cho Gradle Test Executor
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-	// 2. Thư viện Fabric GameTest API cho Integration Test
-	implementation fabricApi.module("fabric-gametest-api-v1", project.fabric_api_version)
-}
-
-processResources {
-	def version = project.version
-	inputs.property "version", version
-
-	filesMatching("fabric.mod.json") {
-		expand "version": version
-	}
-}
-
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
-}
-
-java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
-	withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
-}
-
-jar {
-	def projectName = project.name
-	inputs.property "projectName", projectName
-
-	from("LICENSE") {
-		rename { "${it}_$projectName"}
+	java {
+		sourceCompatibility = JavaVersion.VERSION_25
+		targetCompatibility = JavaVersion.VERSION_25
 	}
 
-	// [VI] Loại trừ các lớp kiểm thử tự động GameTest và bộ sinh dữ liệu DataGen khỏi bản phân phối chính thức
-	// [EN] Exclude internal GameTest classes and DataGen from the production distribution JAR
-	exclude "net/enderirt/smalllogictweaks/gametest/**"
-	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
-}
-
-sourcesJar {
-	exclude "net/enderirt/smalllogictweaks/gametest/**"
-	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
-}
-
-// configure the maven publication
-publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			from components.java
-		}
-	}
-
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
-	}
-}
-loom {
-	runs {
-		// Cấu hình cho máy khách (Giữ nguyên thư mục run)
-		client {
-			client()
-			ideConfigGenerated true
-			name = "Minecraft Client"
-			source sourceSets.main
-			runDir "run"
-		}
-		// Cấu hình cho máy chủ (Đổi sang thư mục run_server riêng biệt)
-		server {
-			server()
-			ideConfigGenerated true
-			name = "Minecraft Server"
-			source sourceSets.main
-			runDir "run_server"
-		}
-		// Định nghĩa cấu hình chạy chuyên dụng để kích hoạt hệ thống GameTest
-		gameTestServer {
-			server() // Thiết lập môi trường chạy là máy chủ (Headless Server)
-			name "Minecraft GameTest Server"
-			vmArg "-Dfabric-api.gametest" // Tham số bắt buộc để kích hoạt bộ nạp GameTest của Fabric
-			runDir "run-gametest" // Thư mục riêng biệt để chứa dữ liệu thế giới ảo khi test
-		}
-	}
-}
-
-test {
-	useJUnitPlatform()
-}
-
-tasks.named('test') {
-	useJUnitPlatform()
-
-	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
-	testLogging {
-		events "passed", "skipped", "failed"
-	}
-}
-
-jacoco {
-	toolVersion = "0.8.12"
-}
-
-// Áp dụng Jacoco cho task chạy GameTest Server để đo độ phủ thực tế trong game
-// jacoco.applyTo(tasks.named('runGameTestServer').get())
-
-jacocoTestReport {
-	dependsOn test
-	executionData fileTree(layout.buildDirectory).include("jacoco/*.exec")
-	reports {
-		xml.required = true
-		html.required = true
+	tasks.withType(JavaCompile).configureEach {
+		it.options.release = 25
+		it.options.encoding = 'UTF-8'
 	}
 }
 
@@ -266,12 +135,19 @@ def releaseProjectId = (project.findProperty("modrinthProjectId") ?: "small-logi
 def releaseLoaders = (project.findProperty("modrinthLoaders") ?: "fabric").toString().split(",")*.trim().findAll { it }
 def releaseVersionName = "Small Logic Tweaks ${project.version}"
 
+// Shared with the loader modules (read as rootProject.ext.<name>)
+ext.releaseVersionType = modrinthVersionType
+ext.releaseChangelog = modrinthChangelog
+ext.releaseProjectId = releaseProjectId
+ext.releaseLoaders = releaseLoaders
+ext.releaseVersionName = releaseVersionName
+
 // Task to export release metadata as JSON for scripts/deploy.ps1 (single source of truth for version/type/changelog parsing)
 tasks.register("exportReleaseInfo") {
 	def outFile = layout.buildDirectory.file("release/info.json")
-	def jarName = tasks.named("jar").flatMap { it.archiveFileName }
 	outputs.upToDateWhen { false }
 	doLast {
+		def jarFile = project(":fabric").tasks.named("jar").get().archiveFile.get().asFile
 		def info = [
 			modVersion      : project.version.toString(),
 			baseVersion     : getBaseVersion(),
@@ -279,7 +155,7 @@ tasks.register("exportReleaseInfo") {
 			versionType     : getVersionType(),
 			versionName     : releaseVersionName.toString(),
 			loaders         : releaseLoaders,
-			jar             : jarName.get(),
+			jar             : rootProject.relativePath(jarFile).replace(File.separator, '/'),
 			changelog       : getChangelogText()
 		]
 		def file = outFile.get().asFile
@@ -288,26 +164,3 @@ tasks.register("exportReleaseInfo") {
 		println "Release info written to ${file}"
 	}
 }
-
-modrinth {
-	token = System.getenv("MODRINTH_TOKEN") ?: ""
-	projectId = releaseProjectId
-	versionNumber = project.version
-	versionName = releaseVersionName
-	versionType = modrinthVersionType
-	gameVersions = [project.minecraft_version]
-	loaders = releaseLoaders
-	changelog = modrinthChangelog
-	uploadFile = tasks.jar
-	
-	dependencies {
-		required.project "fabric-api"
-	}
-}
-
-afterEvaluate {
-	def modrinthTask = project.tasks.findByName("modrinth")
-	if (modrinthTask != null) {
-		modrinthTask.dependsOn("verifyChangelog")
-	}
-}

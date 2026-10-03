@@ -4,6 +4,10 @@ pluginManagement {
 			name = 'Fabric'
 			url = 'https://maven.fabricmc.net/'
 		}
+		maven {
+			name = 'NeoForged'
+			url = 'https://maven.neoforged.net/releases'
+		}
 		mavenCentral()
 		gradlePluginPortal()
 	}
@@ -11,3 +15,8 @@ pluginManagement {
 
 // Should match your modid
 rootProject.name = 'small-logic-tweaks'
+
+// [VI] common: code trung lập loader (chỉ Minecraft + Mixin). Mỗi module loader biên dịch kèm source của common.
+// [EN] common: loader-neutral code (Minecraft + Mixin only). Each loader module compiles common's sources into its own jar.
+include 'common'
+include 'fabric'

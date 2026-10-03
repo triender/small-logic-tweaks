@@ -5,7 +5,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.enchantment.Enchantment;
 
-import static net.enderirt.smalllogictweaks.SmallLogicTweaks.MOD_ID;
+import static net.enderirt.smalllogictweaks.SmallLogicTweaksCommon.MOD_ID;
 
 public class Timber {
     public static final ResourceKey<Enchantment> TIMBER =

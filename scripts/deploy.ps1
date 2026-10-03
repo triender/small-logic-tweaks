@@ -172,7 +172,9 @@ function Read-ReleaseInfo($Branch) {
         return $false
     }
     $Branch.Info = Get-Content -Raw -Encoding UTF8 $path | ConvertFrom-Json
-    $Branch.JarPath = Join-Path $Branch.Worktree "build\libs\$($Branch.Info.jar)"
+    # Multi-module branches report a repo-relative path (fabric/build/libs/...); older single-module branches a bare file name
+    $jar = "$($Branch.Info.jar)"
+    $Branch.JarPath = if ($jar -match '[\\/]') { Join-Path $Branch.Worktree $jar } else { Join-Path $Branch.Worktree "build\libs\$jar" }
     if (-not (Test-Path $Branch.JarPath)) {
         Write-Host "Jar not found: $($Branch.JarPath)" -ForegroundColor Red
         return $false
@@ -335,7 +337,7 @@ function Publish-GitHubRelease($Branch, [string]$Tag) {
     $release = Invoke-RestMethod -Method Post -Uri "$api/releases" -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
         -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($json))
     try {
-        $uploadUrl = ($release.upload_url -replace '\{.*\}$', '') + "?name=" + [Uri]::EscapeDataString($Branch.Info.jar)
+        $uploadUrl = ($release.upload_url -replace '\{.*\}$', '') + "?name=" + [Uri]::EscapeDataString((Split-Path -Leaf $Branch.JarPath))
         Invoke-RestMethod -Method Post -Uri $uploadUrl -UserAgent $UserAgent -Headers (Get-GitHubHeaders) `
             -ContentType "application/java-archive" -InFile $Branch.JarPath | Out-Null
         $publish = @{ draft = $false } | ConvertTo-Json

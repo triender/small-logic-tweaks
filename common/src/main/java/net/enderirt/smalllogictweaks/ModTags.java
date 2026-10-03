@@ -17,5 +17,5 @@ public final class ModTags {
      * [EN] Tag identifying entities that cannot break turtle eggs (MC-248332).
      */
     public static final TagKey<EntityType<?>> CANNOT_BREAK_TURTLE_EGGS =
-            TagKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(SmallLogicTweaks.MOD_ID, "cannot_break_turtle_eggs"));
+            TagKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(SmallLogicTweaksCommon.MOD_ID, "cannot_break_turtle_eggs"));
 }

@@ -1,0 +1,184 @@
+plugins {
+	id 'net.fabricmc.fabric-loom'
+	id 'maven-publish'
+	id 'com.modrinth.minotaur'
+}
+
+base {
+	archivesName = "${rootProject.name}-fabric"
+}
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	// You should only use this when depending on other mods because
+	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
+	// for more information about repositories.
+}
+
+// [VI] Nhận source/resource của module common để biên dịch chung vào jar Fabric
+// [EN] Receive the common module's sources/resources to compile them into the Fabric jar
+configurations {
+	commonJava {
+		canBeResolved = true
+		canBeConsumed = false
+	}
+	commonResources {
+		canBeResolved = true
+		canBeConsumed = false
+	}
+}
+
+fabricApi {
+	configureDataGeneration {
+		client = true
+	}
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Common module: compileOnly for IDE resolution; its sources are compiled into this jar below
+	compileOnly project(':common')
+	commonJava project(path: ':common', configuration: 'commonJava')
+	commonResources project(path: ':common', configuration: 'commonResources')
+
+	// Cung cấp API để viết test
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+	// Cung cấp Engine để chạy test
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+	// Cung cấp Launcher cho Gradle Test Executor
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// 2. Thư viện Fabric GameTest API cho Integration Test
+	implementation fabricApi.module("fabric-gametest-api-v1", project.fabric_api_version)
+}
+
+tasks.named('compileJava', JavaCompile) {
+	dependsOn configurations.commonJava
+	source(configurations.commonJava)
+}
+
+processResources {
+	dependsOn configurations.commonResources
+	from(configurations.commonResources)
+
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+}
+
+jar {
+	def projectName = rootProject.name
+	inputs.property "projectName", projectName
+
+	from(rootProject.file("LICENSE")) {
+		rename { "${it}_$projectName"}
+	}
+
+	// [VI] Loại trừ các lớp kiểm thử tự động GameTest và bộ sinh dữ liệu DataGen khỏi bản phân phối chính thức
+	// [EN] Exclude internal GameTest classes and DataGen from the production distribution JAR
+	exclude "net/enderirt/smalllogictweaks/gametest/**"
+	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
+}
+
+sourcesJar {
+	dependsOn configurations.commonJava, configurations.commonResources
+	from(configurations.commonJava)
+	from(configurations.commonResources)
+	exclude "net/enderirt/smalllogictweaks/gametest/**"
+	exclude "net/enderirt/smalllogictweaks/SmallLogicTweaksDataGenerator*"
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}
+
+loom {
+	runs {
+		// Cấu hình cho máy khách (Giữ nguyên thư mục run)
+		client {
+			client()
+			ideConfigGenerated true
+			name = "Minecraft Client"
+			source sourceSets.main
+			runDir "run"
+		}
+		// Cấu hình cho máy chủ (Đổi sang thư mục run_server riêng biệt)
+		server {
+			server()
+			ideConfigGenerated true
+			name = "Minecraft Server"
+			source sourceSets.main
+			runDir "run_server"
+		}
+		// Định nghĩa cấu hình chạy chuyên dụng để kích hoạt hệ thống GameTest
+		gameTestServer {
+			server() // Thiết lập môi trường chạy là máy chủ (Headless Server)
+			name "Minecraft GameTest Server"
+			vmArg "-Dfabric-api.gametest" // Tham số bắt buộc để kích hoạt bộ nạp GameTest của Fabric
+			runDir "run-gametest" // Thư mục riêng biệt để chứa dữ liệu thế giới ảo khi test
+		}
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+
+	// Tùy chọn: Hiển thị kết quả test chi tiết ra màn hình console
+	testLogging {
+		events "passed", "skipped", "failed"
+	}
+}
+
+modrinth {
+	token = System.getenv("MODRINTH_TOKEN") ?: ""
+	projectId = rootProject.ext.releaseProjectId
+	versionNumber = project.version
+	versionName = rootProject.ext.releaseVersionName
+	versionType = rootProject.ext.releaseVersionType
+	gameVersions = [project.minecraft_version]
+	loaders = rootProject.ext.releaseLoaders
+	changelog = rootProject.ext.releaseChangelog
+	uploadFile = tasks.jar
+
+	dependencies {
+		required.project "fabric-api"
+	}
+}
+
+afterEvaluate {
+	def modrinthTask = project.tasks.findByName("modrinth")
+	if (modrinthTask != null) {
+		modrinthTask.dependsOn(rootProject.tasks.named("verifyChangelog"))
+	}
+}
