@@ -1,5 +1,8 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+### ✨ Added
+* **NeoForge support:** Small Logic Tweaks is now also available for NeoForge as a separate download, with the same tweaks and the same configuration file. On Minecraft 26.3 the NeoForge build is published as a beta while NeoForge 26.3 itself is in beta.
+
 ---
 # 🔨 Memory Preserve & 🐢 Weightless Creatures Update (Version 1.6.0)
 

@@ -2,7 +2,7 @@
 
 **Minecraft logic is weird. This mod makes it feel consistent—one interaction at a time.**
 
-Small Logic Tweaks is a lightweight Vanilla+ Fabric mod focused on intuitive mechanics that align with existing player behavior, without introducing tech progression, automation chains, or progression skips.
+Small Logic Tweaks is a lightweight Vanilla+ mod for Fabric and NeoForge focused on intuitive mechanics that align with existing player behavior, without introducing tech progression, automation chains, or progression skips.
 
 ## Project Goals
 
@@ -146,11 +146,14 @@ Tool identity is intentional:
 
 ## Compatibility
 
-- Platform target: **Fabric** (100% compatible with Quilt; NeoForge support planned)
+- Platform targets: **Fabric** and **NeoForge** (separate downloads; pick the one matching your loader)
+  - Fabric build requires Fabric API
+  - Quilt: the Fabric build runs on Quilt Loader 0.31+ (currently beta); Quilt Loader 0.30.x is not supported
+  - NeoForge build for Minecraft 26.3 is a beta while NeoForge 26.3 itself is in beta
 - Style target: Vanilla-like gameplay
 - Designed to be lightweight and minimally invasive
 - Intended to coexist with most QoL and world-generation mods
-- Multiplayer requires installation on both client and server for synchronized behavior
+- Multiplayer requires installation on both client and server for synchronized behavior (client and server must use the same loader)
 
 ## Roadmap (Planned / Investigating)
 
