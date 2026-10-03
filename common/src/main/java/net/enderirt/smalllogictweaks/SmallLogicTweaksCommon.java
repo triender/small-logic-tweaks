@@ -14,4 +14,12 @@ public final class SmallLogicTweaksCommon {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private SmallLogicTweaksCommon() {}
+
+    /**
+     * VI: Khởi tạo phần chung, gọi đầu tiên trong entrypoint của mọi loader (trước khi đăng ký event).
+     * EN: Common initialization, called first by every loader's entrypoint (before registering events).
+     */
+    public static void init() {
+        SmallLogicTweaksConfig.load();
+    }
 }

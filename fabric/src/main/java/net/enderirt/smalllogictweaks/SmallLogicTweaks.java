@@ -7,7 +7,6 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
-import com.google.gson.Gson;
 import org.slf4j.Logger;
 
 public class SmallLogicTweaks implements ModInitializer {
@@ -23,15 +22,11 @@ public class SmallLogicTweaks implements ModInitializer {
 		PayloadTypeRegistry.clientboundPlay().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
 
 		// Lắng nghe sự kiện người chơi tham gia
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-			// Đóng gói cấu hình cục bộ của Server
-			String serverConfigJson = SmallLogicTweaksConfig.GSON.toJson(SmallLogicTweaksConfig.LOCAL_INSTANCE);
-
-			// Gửi xuống Client qua abstraction SPI
-			Services.NETWORK.sendToPlayer(handler.player, new ConfigSyncPayload(serverConfigJson));
-		});
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+				// Đóng gói cấu hình cục bộ của Server và gửi xuống Client qua abstraction SPI
+				Services.NETWORK.sendToPlayer(handler.player, ConfigSyncPayload.fromLocalConfig()));
 		// 1. Luôn tải cấu hình đầu tiên
-		SmallLogicTweaksConfig.load();
+		SmallLogicTweaksCommon.init();
 
 		// 2. Khởi tạo các module dựa trên cấu hình đã tải
 		TweaksConfigCondition.initialize();

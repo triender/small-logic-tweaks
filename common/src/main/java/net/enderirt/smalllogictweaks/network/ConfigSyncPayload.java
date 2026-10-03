@@ -1,5 +1,6 @@
 package net.enderirt.smalllogictweaks.network;
 
+import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -12,6 +13,14 @@ public record ConfigSyncPayload(String jsonConfig) implements CustomPacketPayloa
             ConfigSyncPayload::write,
             ConfigSyncPayload::new
     );
+
+    /**
+     * VI: Đóng gói cấu hình cục bộ của server để gửi cho người chơi vừa vào.
+     * EN: Packs the server's local config to send to a joining player.
+     */
+    public static ConfigSyncPayload fromLocalConfig() {
+        return new ConfigSyncPayload(SmallLogicTweaksConfig.GSON.toJson(SmallLogicTweaksConfig.LOCAL_INSTANCE));
+    }
 
     public ConfigSyncPayload(FriendlyByteBuf buf) {
         this(buf.readUtf(32767));

@@ -6,7 +6,6 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceCondition;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditionType;
 import net.fabricmc.fabric.api.resource.conditions.v1.ResourceConditions;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryOps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +19,7 @@ public record TweaksConfigCondition(String key) implements ResourceCondition {
     );
 
     public static final ResourceConditionType<TweaksConfigCondition> TYPE =
-            ResourceConditionType.create(Identifier.fromNamespaceAndPath("small_logic_tweaks", "config_flag"), CODEC);
+            ResourceConditionType.create(ConfigFlags.CONDITION_ID, CODEC);
 
     public static void initialize() {
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
@@ -37,11 +36,6 @@ public record TweaksConfigCondition(String key) implements ResourceCondition {
     // Tùy thuộc vào phiên bản Fabric, tham số ở đây có thể là RegistryInfoLookup hoặc HolderLookup.Provider
     @Override
     public boolean test(RegistryOps.RegistryInfoLookup registryLookup) {
-        return switch (this.key) {
-            case "charcoal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
-            case "coal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_COAL_TO_BLACK_DYE;
-            case "jungle_leaves" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
-            default -> false;
-        };
+        return ConfigFlags.isEnabled(this.key);
     }
 }
