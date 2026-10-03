@@ -4,11 +4,11 @@
 * **NeoForge support:** Small Logic Tweaks is now also available for NeoForge as a separate download, with the same tweaks and the same configuration file. On Minecraft 26.3 the NeoForge build is published as a beta while NeoForge 26.3 itself is in beta.
 
 ---
-# 🔨 Memory Preserve & 🐢 Weightless Creatures Update (Version 1.6.0)
+# 🔨 Memory Preserved & 🐢 Weightless Creatures Update (Version 1.6.0)
 
 ### ✨ Added
 
-**🔨 Memory preserve (Anvil preserved):**
+**🔨 Memory preserved (Anvil preserved):**
 * **Preserve repair cost:** Repairing tool durability with raw materials or like-items and renaming tools no longer increase the Prior Work Penalty (`RepairCost`).
 * **Progression-only penalty scaling:** Only applying new enchantments or upgrading existing enchantment tiers will increment the anvil penalty cost.
 * **Configurable:** Added `ENABLE_ANVIL_PRESERVED` toggle in the configuration file (default: `true`).
