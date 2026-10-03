@@ -28,8 +28,10 @@ public abstract class AnvilMenuMixin extends ItemCombinerMenu {
         super(null, containerId, playerInventory, access, null);
     }
 
+    // NeoForge moves vanilla's createResult() body into createResultInternal() and turns createResult() into a
+    // wrapper that fires its anvil event; whichever selector does not exist on a loader is simply not matched.
     @Redirect(
-            method = "createResult",
+            method = {"createResult", "createResultInternal"},
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/item/ItemStack;set(Lnet/minecraft/core/component/DataComponentType;Ljava/lang/Object;)Ljava/lang/Object;"

@@ -6,6 +6,12 @@
       "key": "coal_dye"
     }
   ],
+  "neoforge:conditions": [
+    {
+      "type": "small_logic_tweaks:config_flag",
+      "key": "coal_dye"
+    }
+  ],
   "ingredients": [
     "minecraft:coal"
   ],

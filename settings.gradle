@@ -20,3 +20,4 @@ rootProject.name = 'small-logic-tweaks'
 // [EN] common: loader-neutral code (Minecraft + Mixin only). Each loader module compiles common's sources into its own jar.
 include 'common'
 include 'fabric'
+include 'neoforge'

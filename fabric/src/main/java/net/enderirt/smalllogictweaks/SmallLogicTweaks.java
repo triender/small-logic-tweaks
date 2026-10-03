@@ -3,6 +3,7 @@ package net.enderirt.smalllogictweaks;
 import net.enderirt.smalllogictweaks.core.platform.Services;
 import net.enderirt.smalllogictweaks.network.ConfigSyncPayload;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -35,5 +36,8 @@ public class SmallLogicTweaks implements ModInitializer {
 			LOGGER.info("Small Logic Tweaks Mod initialization completed.");
 		}
 		SmallLogicTweaksEvents.register();
+
+		// Kiểm tra mixin cho boot test (chỉ chạy khi có -Dslt.mixinAudit=true)
+		ServerLifecycleEvents.SERVER_STARTED.register(server -> SmallLogicTweaksCommon.runMixinAuditIfRequested());
 	}
 }

@@ -163,11 +163,11 @@ tasks.named('test') {
 modrinth {
 	token = System.getenv("MODRINTH_TOKEN") ?: ""
 	projectId = rootProject.ext.releaseProjectId
-	versionNumber = project.version
-	versionName = rootProject.ext.releaseVersionName
-	versionType = rootProject.ext.releaseVersionType
+	versionNumber = rootProject.ext.releaseArtifacts.fabric.versionNumber
+	versionName = rootProject.ext.releaseArtifacts.fabric.versionName
+	versionType = rootProject.ext.releaseArtifacts.fabric.versionType
 	gameVersions = [project.minecraft_version]
-	loaders = rootProject.ext.releaseLoaders
+	loaders = rootProject.ext.releaseArtifacts.fabric.modrinthLoaders
 	changelog = rootProject.ext.releaseChangelog
 	uploadFile = tasks.jar
 

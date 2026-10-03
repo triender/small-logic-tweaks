@@ -1,0 +1,30 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+issueTrackerURL="https://github.com/triender/small-logic-tweaks/issues"
+
+[[mods]]
+modId="small_logic_tweaks"
+version="${version}"
+displayName="Small Logic Tweaks"
+displayURL="https://github.com/triender/small-logic-tweaks"
+logoFile="assets/small_logic_tweaks/icon.png"
+authors="EnderirT"
+description='''Minecraft logic is weird. We’re making it make sense—one block at a time.'''
+
+[[mixins]]
+config="small-logic-tweaks.mixins.json"
+
+[[dependencies.small_logic_tweaks]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.small_logic_tweaks]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_range}"
+ordering="NONE"
+side="BOTH"

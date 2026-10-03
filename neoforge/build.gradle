@@ -1,0 +1,114 @@
+plugins {
+	id 'net.neoforged.moddev'
+	id 'com.modrinth.minotaur'
+}
+
+base {
+	archivesName = "${rootProject.name}-neoforge"
+}
+
+// [VI] Nhận source/resource của module common để biên dịch chung vào jar NeoForge
+// [EN] Receive the common module's sources/resources to compile them into the NeoForge jar
+configurations {
+	commonJava {
+		canBeResolved = true
+		canBeConsumed = false
+	}
+	commonResources {
+		canBeResolved = true
+		canBeConsumed = false
+	}
+}
+
+dependencies {
+	// Common module: compileOnly for IDE resolution; its sources are compiled into this jar below
+	compileOnly project(':common')
+	commonJava project(path: ':common', configuration: 'commonJava')
+	commonResources project(path: ':common', configuration: 'commonResources')
+}
+
+neoForge {
+	version = project.neoforge_version
+
+	runs {
+		client {
+			client()
+			gameDirectory = project.file('run')
+		}
+		server {
+			server()
+			gameDirectory = project.file('run_server')
+			programArgument '--nogui'
+		}
+	}
+
+	mods {
+		small_logic_tweaks {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+tasks.named('compileJava', JavaCompile) {
+	dependsOn configurations.commonJava
+	source(configurations.commonJava)
+}
+
+// [VI] Khoảng phiên bản Minecraft tương đương "~<mc>" của Fabric: [26.3,26.4), [26.1.2,26.2)
+// [EN] Minecraft range equivalent to Fabric's "~<mc>": [26.3,26.4), [26.1.2,26.2)
+def mcParts = project.minecraft_version.toString().split('\\.')
+def minecraftRange = "[${project.minecraft_version},${mcParts[0]}.${(mcParts[1] as int) + 1})"
+
+processResources {
+	dependsOn configurations.commonResources
+	from(configurations.commonResources)
+
+	def props = [
+			version         : project.version.toString(),
+			minecraft_range : minecraftRange.toString(),
+			neoforge_version: project.neoforge_version.toString()
+	]
+	inputs.properties props
+
+	filesMatching("META-INF/neoforge.mods.toml") {
+		expand props
+	}
+}
+
+java {
+	withSourcesJar()
+}
+
+jar {
+	def projectName = rootProject.name
+	inputs.property "projectName", projectName
+
+	from(rootProject.file("LICENSE")) {
+		rename { "${it}_$projectName"}
+	}
+}
+
+sourcesJar {
+	dependsOn configurations.commonJava, configurations.commonResources
+	from(configurations.commonJava)
+	from(configurations.commonResources)
+}
+
+modrinth {
+	token = System.getenv("MODRINTH_TOKEN") ?: ""
+	projectId = rootProject.ext.releaseProjectId
+	versionNumber = rootProject.ext.releaseArtifacts.neoforge.versionNumber
+	versionName = rootProject.ext.releaseArtifacts.neoforge.versionName
+	versionType = rootProject.ext.releaseArtifacts.neoforge.versionType
+	gameVersions = [project.minecraft_version]
+	loaders = rootProject.ext.releaseArtifacts.neoforge.modrinthLoaders
+	changelog = rootProject.ext.releaseChangelog
+	uploadFile = tasks.jar
+}
+
+afterEvaluate {
+	def modrinthTask = project.tasks.findByName("modrinth")
+	if (modrinthTask != null) {
+		modrinthTask.dependsOn(rootProject.tasks.named("verifyChangelog"))
+	}
+}

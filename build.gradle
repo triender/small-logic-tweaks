@@ -1,5 +1,6 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+	id 'net.neoforged.moddev' version "${moddev_version}" apply false
 	id 'com.modrinth.minotaur' version "2.9.0" apply false
 }
 
@@ -129,11 +130,34 @@ tasks.register("verifyChangelog") {
 def modrinthVersionType = getVersionType()
 def modrinthChangelog = getChangelogText()
 
-// [VI] Thông số phát hành do scripts/deploy.ps1 truyền vào từ scripts/deploy_config.json (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt)
-// [EN] Release parameters passed by scripts/deploy.ps1 from scripts/deploy_config.json (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt)
+// [VI] Thông số phát hành do scripts/deploy.ps1 truyền vào từ scripts/deploy_config.json
+//      (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt,neoforge). "quilt" là tag gắn thêm cho jar Fabric.
+// [EN] Release parameters passed by scripts/deploy.ps1 from scripts/deploy_config.json
+//      (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt,neoforge). "quilt" is an extra tag on the Fabric jar.
 def releaseProjectId = (project.findProperty("modrinthProjectId") ?: "small-logic-tweak").toString()
 def releaseLoaders = (project.findProperty("modrinthLoaders") ?: "fabric").toString().split(",")*.trim().findAll { it }
 def releaseVersionName = "Small Logic Tweaks ${project.version}"
+
+// [VI] Mỗi loader là một version riêng trên Modrinth. Bản NeoForge đi theo dạng beta khi NeoForge còn beta.
+// [EN] Each loader is its own Modrinth version. The NeoForge build ships as beta while NeoForge itself is beta.
+def releaseArtifacts = [:]
+releaseArtifacts.fabric = [
+	project        : ":fabric",
+	versionNumber  : project.version.toString(),
+	versionName    : releaseVersionName.toString(),
+	versionType    : modrinthVersionType,
+	modrinthLoaders: releaseLoaders.findAll { it in ["fabric", "quilt"] } ?: ["fabric"]
+]
+if (findProject(":neoforge") != null) {
+	def neoforgeIsBeta = project.neoforge_version.toString().contains("beta")
+	releaseArtifacts.neoforge = [
+		project        : ":neoforge",
+		versionNumber  : "${project.version}-neoforge".toString(),
+		versionName    : "${releaseVersionName} (NeoForge)".toString(),
+		versionType    : (neoforgeIsBeta && modrinthVersionType == "release") ? "beta" : modrinthVersionType,
+		modrinthLoaders: ["neoforge"]
+	]
+}
 
 // Shared with the loader modules (read as rootProject.ext.<name>)
 ext.releaseVersionType = modrinthVersionType
@@ -141,13 +165,18 @@ ext.releaseChangelog = modrinthChangelog
 ext.releaseProjectId = releaseProjectId
 ext.releaseLoaders = releaseLoaders
 ext.releaseVersionName = releaseVersionName
+ext.releaseArtifacts = releaseArtifacts
 
 // Task to export release metadata as JSON for scripts/deploy.ps1 (single source of truth for version/type/changelog parsing)
 tasks.register("exportReleaseInfo") {
 	def outFile = layout.buildDirectory.file("release/info.json")
 	outputs.upToDateWhen { false }
 	doLast {
-		def jarFile = project(":fabric").tasks.named("jar").get().archiveFile.get().asFile
+		def jarPath = { String path -> rootProject.relativePath(project(path).tasks.named("jar").get().archiveFile.get().asFile).replace(File.separator, '/') }
+		// Only the loaders requested by the deploy config are released
+		def artifacts = releaseArtifacts.findAll { loader, a -> loader in releaseLoaders }.collect { loader, a ->
+			[loader: loader, jar: jarPath(a.project)] + a
+		}
 		def info = [
 			modVersion      : project.version.toString(),
 			baseVersion     : getBaseVersion(),
@@ -155,7 +184,8 @@ tasks.register("exportReleaseInfo") {
 			versionType     : getVersionType(),
 			versionName     : releaseVersionName.toString(),
 			loaders         : releaseLoaders,
-			jar             : rootProject.relativePath(jarFile).replace(File.separator, '/'),
+			jar             : jarPath(":fabric"),
+			artifacts       : artifacts,
 			changelog       : getChangelogText()
 		]
 		def file = outFile.get().asFile

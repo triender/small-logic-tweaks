@@ -5,6 +5,12 @@
       "key": "jungle_leaves"
     }
   ],
+  "neoforge:conditions": [
+    {
+      "type": "small_logic_tweaks:config_flag",
+      "key": "jungle_leaves"
+    }
+  ],
   "type": "minecraft:block",
   "pools": [
     {

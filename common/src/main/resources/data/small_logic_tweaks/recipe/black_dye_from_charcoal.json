@@ -6,6 +6,12 @@
       "key": "charcoal_dye"
     }
   ],
+  "neoforge:conditions": [
+    {
+      "type": "small_logic_tweaks:config_flag",
+      "key": "charcoal_dye"
+    }
+  ],
   "ingredients": [
     "minecraft:charcoal"
   ],
