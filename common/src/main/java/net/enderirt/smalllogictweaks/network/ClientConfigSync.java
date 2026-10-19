@@ -3,6 +3,7 @@ package net.enderirt.smalllogictweaks.network;
 import net.enderirt.smalllogictweaks.SmallLogicTweaksCommon;
 import net.enderirt.smalllogictweaks.SmallLogicTweaksConfig;
 import net.enderirt.smalllogictweaks.core.error.SltError;
+import net.enderirt.smalllogictweaks.util.KitchenHelper;
 import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
@@ -39,11 +40,12 @@ public final class ClientConfigSync {
                 // [VI] Nạp cấu hình an toàn đã được chuẩn hóa vào phiên làm việc hiện hành
                 // [EN] Load sanitized and validated configuration into active runtime instance
                 SmallLogicTweaksConfig.ACTIVE_INSTANCE = safeConfig;
+                KitchenHelper.clearCookableCache();
 
                 // [VI] Thông báo cho người chơi nếu cấu hình máy chủ vượt biên an toàn cục bộ
                 // [EN] Notify player if server configuration exceeds local safety boundaries
                 if (hasOutOfBounds) {
-                    notifyPlayer.accept(Component.literal("§e[Small Logic Tweaks] Server configuration is out of safe bounds. Some tweaks are disabled locally."));
+                    notifyPlayer.accept(Component.translatable("chat.small_logic_tweaks.config_out_of_bounds"));
                 } else {
                     SmallLogicTweaksCommon.LOGGER.info("Config synced safely from Server.");
                 }
@@ -59,5 +61,6 @@ public final class ClientConfigSync {
      */
     public static void restoreLocal() {
         SmallLogicTweaksConfig.ACTIVE_INSTANCE = SmallLogicTweaksConfig.LOCAL_INSTANCE;
+        KitchenHelper.clearCookableCache();
     }
 }

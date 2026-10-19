@@ -251,6 +251,7 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
                 SltError.CFG_SAVE_FAILED
         );
         ACTIVE_INSTANCE = LOCAL_INSTANCE;
+        net.enderirt.smalllogictweaks.util.KitchenHelper.clearCookableCache();
     }
 
     public static void save() {

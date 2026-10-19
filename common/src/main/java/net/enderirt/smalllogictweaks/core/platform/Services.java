@@ -1,5 +1,7 @@
 package net.enderirt.smalllogictweaks.core.platform;
 
+import net.enderirt.smalllogictweaks.SmallLogicTweaksCommon;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ServiceLoader;
@@ -27,6 +29,7 @@ public final class Services {
         return ServiceLoader.load(clazz)
                 .findFirst()
                 .orElseGet(() -> {
+                    SmallLogicTweaksCommon.LOGGER.warn("No implementation found via ServiceLoader for {}; using fallback implementation.", clazz.getName());
                     if (clazz == IPlatformHelper.class) {
                         @SuppressWarnings("unchecked")
                         T fallback = (T) new IPlatformHelper() {

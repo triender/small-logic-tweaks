@@ -1,6 +1,9 @@
 package net.enderirt.smalllogictweaks;
 
+import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import net.enderirt.smalllogictweaks.core.config.BaseModConfig;
+import net.enderirt.smalllogictweaks.core.error.SltError;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -166,21 +169,21 @@ public class ConfigSecurityTest {
         Arrays.fill(hugeData, (byte) ' '); // Điền toàn bộ bằng khoảng trắng để tăng dung lượng
         Files.write(massiveFile.toPath(), hugeData);
 
-        // Mô phỏng lại chính xác logic phòng vệ trong hàm load() của bạn
-        long MAX_FILE_SIZE_BYTES = 1024 * 1024;
+        // Gọi trực tiếp BaseModConfig.loadOrCreate để xác minh cơ chế phòng vệ DOS
+        SmallLogicTweaksConfig fallback = BaseModConfig.loadOrCreate(
+                massiveFile,
+                SmallLogicTweaksConfig.class,
+                SmallLogicTweaksConfig::new,
+                SmallLogicTweaksConfig.GSON,
+                SmallLogicTweaksCommon.LOGGER,
+                SltError.CFG_CORRUPTED,
+                SltError.CFG_SAVE_FAILED
+        );
 
-        // Khẳng định rằng điều kiện kiểm tra độ lớn tệp sẽ ném ra ngoại lệ chặn đứng việc đọc
-        IOException exception = Assertions.assertThrows(IOException.class, () -> {
-            if (massiveFile.length() > MAX_FILE_SIZE_BYTES) {
-                throw new IOException("Config file is suspiciously large (>" + MAX_FILE_SIZE_BYTES + " bytes). Refusing to load to prevent OutOfMemoryError.");
-            }
-            // Nếu không bị chặn, đoạn mã giả lập đọc file sẽ chạy và đánh sập RAM
-            Files.readString(massiveFile.toPath());
-        });
-
-        // Kiểm tra xem thông báo lỗi có đúng chuẩn bảo mật nội bộ của mod không
-        Assertions.assertTrue(exception.getMessage().contains("suspiciously large"),
-                "Security failure: System did not block massive file loading (DOS protection failed).");
+        // Khi tệp quá lớn bị từ chối đọc, loadOrCreate an toàn trả về cấu hình mặc định và ghi đè lại file
+        Assertions.assertNotNull(fallback, "Security failure: loadOrCreate should safely return default fallback instance on DOS attack.");
+        Assertions.assertEquals(5, fallback.MAX_LOG_HORIZONTAL_RADIUS);
+        Assertions.assertTrue(massiveFile.length() < 1024 * 1024, "Massive file should have been safely overwritten with default config.");
     }
 
     /**
@@ -207,52 +210,53 @@ public class ConfigSecurityTest {
         }, "Security failure: System did not reject excessively nested JSON structures.");
     }
 
-    // Kiểm tra chuyển đổi toàn bộ khóa (key) sang chữ in hoa toUpperCase(Locale.ROOT) và bảo lưu tiền tố _comment_
+    // Kiểm tra chuyển đổi toàn bộ khóa (key) theo định nghĩa class và bảo lưu tiền tố _comment_
     @Test
     public void testCaseInsensitiveAndCommentNormalization() {
         String messyJson = "{\n" +
                 "  \"eNaBlE_deBug_LoGs\": true,\n" +
                 "  \"_comment_enable_debug_logs\": \"Ghi chú bị sửa đổi\",\n" +
-                "  \"max_leaf_distance\": 12\n" +
+                "  \"max_leaf_distance\": 12,\n" +
+                "  \"magmaCookTimes\": {\"minecraft:beef\": 250},\n" +
+                "  \"aestheticCookResults\": {\"minecraft:porkchop\": \"minecraft:cooked_porkchop\"}\n" +
                 "}";
 
-        // Mô phỏng logic chuẩn hóa trong hàm load()
-        com.google.gson.JsonObject rawObject = SmallLogicTweaksConfig.GSON.fromJson(messyJson, com.google.gson.JsonObject.class);
-        com.google.gson.JsonObject normalizedObject = new com.google.gson.JsonObject();
-
-        for (java.util.Map.Entry<String, com.google.gson.JsonElement> entry : rawObject.entrySet()) {
-            String key = entry.getKey();
-            String normalizedKey = key.toUpperCase(java.util.Locale.ROOT);
-            if (normalizedKey.startsWith("_COMMENT_")) {
-                normalizedKey = "_comment_" + normalizedKey.substring(9);
-            }
-            normalizedObject.add(normalizedKey, entry.getValue());
-        }
+        JsonObject rawObject = SmallLogicTweaksConfig.GSON.fromJson(messyJson, JsonObject.class);
+        JsonObject normalizedObject = BaseModConfig.normalizeJsonObject(rawObject, SmallLogicTweaksConfig.class);
 
         SmallLogicTweaksConfig loaded = SmallLogicTweaksConfig.GSON.fromJson(normalizedObject, SmallLogicTweaksConfig.class);
-
         loaded.validate();
-        
+
         Assertions.assertTrue(loaded.ENABLE_DEBUG_LOGS,
                 "Lỗi chuẩn hóa: Không nhận diện được biến viết hoa/thường lộn xộn.");
         Assertions.assertEquals(12, loaded.MAX_LEAF_DISTANCE,
                 "Lỗi chuẩn hóa: Không nhận diện được biến viết thường hoàn toàn.");
         Assertions.assertTrue(loaded._comment_ENABLE_DEBUG_LOGS.startsWith("Enable or disable"),
                 "Lỗi bảo vệ ghi chú: Ghi chú không được khôi phục về mặc định nếu người dùng cố ý sửa.");
+        Assertions.assertNotNull(loaded.magmaCookTimes, "Lỗi chuẩn hóa: magmaCookTimes bị null.");
+        Assertions.assertEquals(250, loaded.magmaCookTimes.get("minecraft:beef"),
+                "Lỗi chuẩn hóa: magmaCookTimes bị biến đổi sai chữ hoa/thường làm mất dữ liệu.");
+        Assertions.assertNotNull(loaded.aestheticCookResults, "Lỗi chuẩn hóa: aestheticCookResults bị null.");
+        Assertions.assertEquals("minecraft:cooked_porkchop", loaded.aestheticCookResults.get("minecraft:porkchop"),
+                "Lỗi chuẩn hóa: aestheticCookResults bị biến đổi sai chữ hoa/thường làm mất dữ liệu.");
     }
 
     // Kiểm tra bộ lọc ký tự tàng hình BOM (UTF-8 Byte Order Mark)
     @Test
-    public void testUTF8BomRemoval() {
+    public void testUTF8BomRemoval(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("bom_config.json");
         String jsonWithBom = "\uFEFF{\n\"ENABLE_HYDRO_HARDENING\": false\n}";
+        Files.writeString(configFile, jsonWithBom);
 
-        // Logic cắt BOM
-        if (jsonWithBom.startsWith("\uFEFF")) {
-            jsonWithBom = jsonWithBom.substring(1);
-        }
-
-        // Nếu không cắt BOM, dòng dưới đây sẽ ném ra JsonSyntaxException
-        SmallLogicTweaksConfig config = SmallLogicTweaksConfig.GSON.fromJson(jsonWithBom, SmallLogicTweaksConfig.class);
+        SmallLogicTweaksConfig config = BaseModConfig.loadOrCreate(
+                configFile.toFile(),
+                SmallLogicTweaksConfig.class,
+                SmallLogicTweaksConfig::new,
+                SmallLogicTweaksConfig.GSON,
+                SmallLogicTweaksCommon.LOGGER,
+                SltError.CFG_CORRUPTED,
+                SltError.CFG_SAVE_FAILED
+        );
 
         Assertions.assertFalse(config.ENABLE_HYDRO_HARDENING,
                 "Lỗi xử lý BOM: Không thể đọc cấu hình khi tệp chứa ký tự tàng hình UTF-8 BOM.");
@@ -275,26 +279,20 @@ public class ConfigSecurityTest {
 
     // Kiểm tra logic ghi tệp nguyên tử và tạo thư mục
     @Test
-    public void testDirectoryCreationAndAtomicSave(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) {
-        // Tạo một đường dẫn trỏ tới thư mục con chưa từng tồn tại
-        java.io.File deepConfigFile = tempDir.resolve("config/small_logic_tweaks/small_logic_tweaks.json").toFile();
-        java.io.File tempFile = new java.io.File(deepConfigFile.getParentFile(), deepConfigFile.getName() + ".tmp");
+    public void testDirectoryCreationAndAtomicSave(@TempDir Path tempDir) {
+        File deepConfigFile = tempDir.resolve("config/small_logic_tweaks/small_logic_tweaks.json").toFile();
+        File tempFile = new File(deepConfigFile.getParentFile(), deepConfigFile.getName() + ".tmp");
 
         SmallLogicTweaksConfig dummyConfig = new SmallLogicTweaksConfig();
 
         Assertions.assertDoesNotThrow(() -> {
-            // Mô phỏng logic tạo thư mục
-            java.nio.file.Files.createDirectories(deepConfigFile.getParentFile().toPath());
-
-            // Mô phỏng logic ghi tệp .tmp
-            try (java.io.FileWriter writer = new java.io.FileWriter(tempFile)) {
-                SmallLogicTweaksConfig.GSON.toJson(dummyConfig, writer);
-            }
-
-            // Mô phỏng logic Atomic Move
-            java.nio.file.Files.move(tempFile.toPath(), deepConfigFile.toPath(),
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            BaseModConfig.saveAtomically(
+                    deepConfigFile,
+                    dummyConfig,
+                    SmallLogicTweaksConfig.GSON,
+                    SmallLogicTweaksCommon.LOGGER,
+                    SltError.CFG_SAVE_FAILED
+            );
         }, "Lỗi I/O: Hệ thống thất bại trong việc tạo chuỗi thư mục con hoặc ghi tệp nguyên tử.");
 
         Assertions.assertTrue(deepConfigFile.exists(), "Tệp cấu hình gốc không được tạo ra thành công.");

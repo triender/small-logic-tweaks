@@ -14,6 +14,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -95,7 +96,22 @@ public abstract class BaseModConfig {
      * Chuẩn hóa cấu trúc JsonObject: Xóa khoảng trắng thừa, đồng nhất chữ hoa cho khóa và bảo lưu tiền tố _comment_.
      */
     public static JsonObject normalizeJsonObject(JsonObject root) {
+        return normalizeJsonObject(root, null);
+    }
+
+    /**
+     * Chuẩn hóa cấu trúc JsonObject: Đối chiếu không phân biệt chữ hoa/thường với các trường của targetClass.
+     * Nếu tìm thấy trường khớp trong targetClass, sử dụng chính xác tên trường đó để Gson deserialization thành công.
+     */
+    public static JsonObject normalizeJsonObject(JsonObject root, Class<?> targetClass) {
         JsonObject normalized = new JsonObject();
+        Map<String, String> fieldNameMap = new HashMap<>();
+        if (targetClass != null) {
+            for (Field field : targetClass.getFields()) {
+                fieldNameMap.put(field.getName().toUpperCase(Locale.ROOT), field.getName());
+            }
+        }
+
         for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
             String originalKey = entry.getKey();
             String cleanKey = originalKey.trim().toUpperCase(Locale.ROOT);
@@ -103,7 +119,13 @@ public abstract class BaseModConfig {
             if (cleanKey.startsWith("_COMMENT_")) {
                 cleanKey = "_comment_" + cleanKey.substring(9);
             }
-            normalized.add(cleanKey, entry.getValue());
+
+            String matchedField = fieldNameMap.get(cleanKey.toUpperCase(Locale.ROOT));
+            if (matchedField != null) {
+                normalized.add(matchedField, entry.getValue());
+            } else {
+                normalized.add(cleanKey, entry.getValue());
+            }
         }
         return normalized;
     }
@@ -116,15 +138,14 @@ public abstract class BaseModConfig {
      * Ghi dữ liệu cấu hình xuống đĩa cứng bằng kỹ thuật hoán đổi nguyên tử (Atomic Move via .tmp).
      */
     public static void saveAtomically(File targetFile, Object configInstance, Gson gson, Logger logger, IModError saveFailedError) {
+        File parentDir = targetFile.getParentFile();
+        File tempFile = new File(parentDir, targetFile.getName() + ".tmp");
+
         try {
-            if (targetFile.getParentFile() != null) {
-                Files.createDirectories(targetFile.getParentFile().toPath());
+            if (parentDir != null) {
+                Files.createDirectories(parentDir.toPath());
             }
-        } catch (IOException ignored) {}
 
-        File tempFile = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp");
-
-        try {
             try (FileWriter writer = new FileWriter(tempFile)) {
                 gson.toJson(configInstance, writer);
             }
@@ -171,7 +192,7 @@ public abstract class BaseModConfig {
 
                 JsonObject rawObject = gson.fromJson(jsonContent, JsonObject.class);
                 if (rawObject != null) {
-                    JsonObject normalizedObject = normalizeJsonObject(rawObject);
+                    JsonObject normalizedObject = normalizeJsonObject(rawObject, clazz);
                     T loaded = gson.fromJson(normalizedObject, clazz);
                     if (loaded != null) {
                         loaded.validate();

@@ -24,9 +24,7 @@ import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableIn
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * VI: Bo dieu hop su kien Fabric (Fabric Event Adapter) ket noi Fabric Lifecycle vao cac Handler doc lap.
@@ -39,16 +37,6 @@ public final class SmallLogicTweaksEvents {
     // Tuong thich nguoc cho cac module va test hien tai
     public static final Map<Block, Block> POWDER_TO_CONCRETE = ConcreteHardeningHandler.POWDER_TO_CONCRETE;
     public static final TagKey<Block> PICKAXE_REVERSION_BLOCKS = DirtReversionHandler.PICKAXE_REVERSION_BLOCKS;
-
-    public record TimberResult(boolean shouldChop, List<BlockPos> logs, List<BlockPos> leaves, int level) {}
-
-    public record TimberSpeedKey(
-            Object dimension,
-            BlockPos pos,
-            UUID playerId,
-            int timberLevel,
-            boolean isShiftKeyDown
-    ) {}
 
     private SmallLogicTweaksEvents() {}
 
@@ -127,5 +115,9 @@ public final class SmallLogicTweaksEvents {
 
     public static void executePhantomSpawnLogic(ServerLevel level, Player player) {
         EndPhantomHandler.executePhantomSpawnLogic(level, player);
+    }
+
+    public static void executePhantomSpawnLogic(ServerLevel level, Player player, int timeSinceRest, boolean forceRollPass) {
+        EndPhantomHandler.executePhantomSpawnLogic(level, player, timeSinceRest, forceRollPass);
     }
 }

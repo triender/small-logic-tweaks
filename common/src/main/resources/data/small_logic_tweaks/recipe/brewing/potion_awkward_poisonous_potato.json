@@ -1,5 +1,17 @@
 {
   "type": "minecraft:brewing",
+  "fabric:load_conditions": [
+    {
+      "condition": "small_logic_tweaks:config_flag",
+      "key": "poisonous_potato_brewing"
+    }
+  ],
+  "neoforge:conditions": [
+    {
+      "type": "small_logic_tweaks:config_flag",
+      "key": "poisonous_potato_brewing"
+    }
+  ],
   "input": {
     "item": "minecraft:potion",
     "potion_contents": {

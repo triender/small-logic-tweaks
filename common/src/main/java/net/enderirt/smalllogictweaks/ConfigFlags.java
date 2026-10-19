@@ -18,6 +18,7 @@ public final class ConfigFlags {
             case "charcoal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE;
             case "coal_dye" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_COAL_TO_BLACK_DYE;
             case "jungle_leaves" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY;
+            case "poisonous_potato_brewing" -> SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING;
             default -> false;
         };
     }

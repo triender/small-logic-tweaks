@@ -31,8 +31,6 @@ public final class TimberHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("small_logic_tweaks");
 
-    public static boolean ENABLE_TIMBER_DEBUG_LOGS = false;
-
     /**
      * VI: Cấu trúc kết quả phân tích cấu trúc cây gỗ Timber.
      * EN: Timber tree structure analysis result record.
@@ -62,7 +60,7 @@ public final class TimberHandler {
     private TimberHandler() {}
 
     private static void debugLog(String message, Object... args) {
-        if (ENABLE_TIMBER_DEBUG_LOGS) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_TIMBER_DEBUG_LOGS) {
             LOGGER.info(message, args);
         }
     }
@@ -118,13 +116,13 @@ public final class TimberHandler {
 
         ItemStack axe = player.getMainHandItem();
         int levelEnchant = 0;
-        try {
-            var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-            var timberHolder = registry.get(Timber.TIMBER);
+        var enchantLookup = level.registryAccess().lookup(Registries.ENCHANTMENT);
+        if (enchantLookup.isPresent()) {
+            var timberHolder = enchantLookup.get().get(Timber.TIMBER);
             if (timberHolder.isPresent()) {
                 levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(timberHolder.get(), axe);
             }
-        } catch (Exception ignored) {}
+        }
 
         if (levelEnchant <= 0) {
             return 1.0f;
@@ -171,20 +169,37 @@ public final class TimberHandler {
         if (player.isShiftKeyDown() || !level.getBlockState(startPos).is(BlockTags.LOGS))
             return new TimberResult(false, List.of(), List.of(), 0);
 
-        var registry = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-        int levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(registry.getOrThrow(Timber.TIMBER), axe);
+        var enchantLookup = level.registryAccess().lookup(Registries.ENCHANTMENT);
+        if (enchantLookup.isEmpty()) {
+            return new TimberResult(false, List.of(), List.of(), 0);
+        }
+        var timberHolder = enchantLookup.get().get(Timber.TIMBER);
+        if (timberHolder.isEmpty()) {
+            return new TimberResult(false, List.of(), List.of(), 0);
+        }
+        int levelEnchant = EnchantmentHelper.getItemEnchantmentLevel(timberHolder.get(), axe);
 
         if (levelEnchant <= 0) {
             return new TimberResult(false, List.of(), List.of(), 0);
         }
 
-        int maxLogs;
-        switch (levelEnchant) {
-            case 1 -> maxLogs = 16;
-            case 2 -> maxLogs = 64;
-            default -> maxLogs = 140;
-        }
+        int maxLogs = switch (levelEnchant) {
+            case 1 -> 16;
+            case 2 -> 64;
+            default -> 140;
+        };
 
+        int maxHorizontalRadius = SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS;
+        List<BlockPos> logs = collectConnectedLogs(level, startPos, maxLogs, maxHorizontalRadius);
+
+        int maxLeafDistance = SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LEAF_DISTANCE;
+        List<BlockPos> leaves = collectConnectedLeaves(level, logs, maxLeafDistance);
+
+        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.MIN_LEAVES_FOR_TREE;
+        return new TimberResult(isTree, logs, leaves, levelEnchant);
+    }
+
+    private static List<BlockPos> collectConnectedLogs(Level level, BlockPos startPos, int maxLogs, int maxHorizontalRadius) {
         Set<BlockPos> visitedLogs = new HashSet<>();
         List<BlockPos> logs = new ArrayList<>();
         Queue<BlockPos> logQueue = new LinkedList<>();
@@ -192,7 +207,6 @@ public final class TimberHandler {
         logQueue.add(startPos);
         visitedLogs.add(startPos);
 
-        // Pha 1: Quét thân gỗ
         while (!logQueue.isEmpty() && logs.size() < maxLogs) {
             BlockPos current = logQueue.poll();
             logs.add(current);
@@ -203,8 +217,8 @@ public final class TimberHandler {
                         if (x == 0 && y == 0 && z == 0) continue;
                         BlockPos neighbor = current.offset(x, y, z);
 
-                        if (Math.abs(neighbor.getX() - startPos.getX()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS ||
-                                Math.abs(neighbor.getZ() - startPos.getZ()) > SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LOG_HORIZONTAL_RADIUS) continue;
+                        if (Math.abs(neighbor.getX() - startPos.getX()) > maxHorizontalRadius ||
+                                Math.abs(neighbor.getZ() - startPos.getZ()) > maxHorizontalRadius) continue;
 
                         if (!visitedLogs.contains(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS)) {
                             visitedLogs.add(neighbor);
@@ -214,9 +228,11 @@ public final class TimberHandler {
                 }
             }
         }
+        return logs;
+    }
 
-        // Pha 2: Quét tán lá
-        Set<BlockPos> visitedLeaves = new HashSet<>();
+    private static List<BlockPos> collectConnectedLeaves(Level level, List<BlockPos> logs, int maxLeafDistance) {
+        Set<BlockPos> visited = new HashSet<>(logs);
         List<BlockPos> leaves = new ArrayList<>();
         Queue<BlockPos> leafQueue = new LinkedList<>();
         Map<BlockPos, Integer> leafDistance = new HashMap<>();
@@ -230,13 +246,13 @@ public final class TimberHandler {
             BlockPos current = leafQueue.poll();
             int currentDist = leafDistance.get(current);
 
-            if (!(currentDist < SmallLogicTweaksConfig.ACTIVE_INSTANCE.MAX_LEAF_DISTANCE)) continue;
+            if (currentDist >= maxLeafDistance) continue;
 
             for (Direction dir : Direction.values()) {
                 BlockPos neighbor = current.relative(dir);
 
-                if (!visitedLogs.contains(neighbor) && !visitedLeaves.contains(neighbor)) {
-                    visitedLeaves.add(neighbor);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
                     BlockState state = level.getBlockState(neighbor);
 
                     if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT)) {
@@ -247,9 +263,7 @@ public final class TimberHandler {
                 }
             }
         }
-
-        boolean isTree = !logs.isEmpty() && leaves.size() >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.MIN_LEAVES_FOR_TREE;
-        return new TimberResult(isTree, logs, leaves, levelEnchant);
+        return leaves;
     }
 
     /**
@@ -276,68 +290,72 @@ public final class TimberHandler {
 
         // 2. Ép game logic xử lý lá (Tối ưu hóa In-Memory)
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_AUTO_LEAVES_DECAY) {
-            Map<BlockPos, Integer> virtualDistances = new HashMap<>();
-            for (BlockPos leafPos : result.leaves()) {
-                BlockState state = level.getBlockState(leafPos);
-                if (state.hasProperty(LeavesBlock.DISTANCE)) {
-                    virtualDistances.put(leafPos, state.getValue(LeavesBlock.DISTANCE));
-                }
-            }
-
-            boolean changed;
-            int loops = 0;
-
-            // Bước A: Chạy thuật toán cập nhật khoảng cách hoàn toàn trên RAM
-            do {
-                changed = false;
-                for (BlockPos leafPos : result.leaves()) {
-                    BlockState state = level.getBlockState(leafPos);
-
-                    if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                        int currentDist = virtualDistances.getOrDefault(leafPos, 7);
-                        int minDistance = 7;
-
-                        for (Direction dir : Direction.values()) {
-                            BlockPos neighborPos = leafPos.relative(dir);
-                            BlockState neighbor = level.getBlockState(neighborPos);
-
-                            if (neighbor.is(BlockTags.LOGS)) {
-                                minDistance = 1;
-                                break;
-                            } else if (neighbor.is(BlockTags.LEAVES) && neighbor.hasProperty(LeavesBlock.DISTANCE)) {
-                                int neighborDist = virtualDistances.containsKey(neighborPos)
-                                        ? virtualDistances.get(neighborPos)
-                                        : neighbor.getValue(LeavesBlock.DISTANCE);
-
-                                minDistance = Math.min(minDistance, neighborDist + 1);
-                            }
-                        }
-
-                        if (currentDist != minDistance) {
-                            virtualDistances.put(leafPos, minDistance);
-                            changed = true;
-                        }
-                    }
-                }
-                loops++;
-            } while (changed && loops < 10);
-
-            // Bước B: Phá vỡ hoặc cập nhật lại trạng thái thực tế
-            for (BlockPos leafPos : result.leaves()) {
-                BlockState state = level.getBlockState(leafPos);
-
-                if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                    int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
-
-                    if (finalDistance >= SmallLogicTweaksConfig.ACTIVE_INSTANCE.DECAY_THRESHOLD) {
-                        level.destroyBlock(leafPos, true);
-                    } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
-                        level.setBlock(leafPos, state.setValue(LeavesBlock.DISTANCE, finalDistance), 20);
-                    }
-                }
-            }
+            processAutoLeavesDecay(level, result.leaves(), SmallLogicTweaksConfig.ACTIVE_INSTANCE.DECAY_THRESHOLD);
         }
 
         debugLog("[Timber] Execution finished. Logs broken: {}", brokenLogsCount);
+    }
+
+    private static void processAutoLeavesDecay(ServerLevel level, List<BlockPos> leaves, int decayThreshold) {
+        Map<BlockPos, Integer> virtualDistances = new HashMap<>();
+        for (BlockPos leafPos : leaves) {
+            BlockState state = level.getBlockState(leafPos);
+            if (state.hasProperty(LeavesBlock.DISTANCE)) {
+                virtualDistances.put(leafPos, state.getValue(LeavesBlock.DISTANCE));
+            }
+        }
+
+        boolean changed;
+        int loops = 0;
+
+        // Bước A: Chạy thuật toán cập nhật khoảng cách hoàn toàn trên RAM
+        do {
+            changed = false;
+            for (BlockPos leafPos : leaves) {
+                BlockState state = level.getBlockState(leafPos);
+
+                if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
+                    int currentDist = virtualDistances.getOrDefault(leafPos, 7);
+                    int minDistance = 7;
+
+                    for (Direction dir : Direction.values()) {
+                        BlockPos neighborPos = leafPos.relative(dir);
+                        BlockState neighbor = level.getBlockState(neighborPos);
+
+                        if (neighbor.is(BlockTags.LOGS)) {
+                            minDistance = 1;
+                            break;
+                        } else if (neighbor.is(BlockTags.LEAVES) && neighbor.hasProperty(LeavesBlock.DISTANCE)) {
+                            int neighborDist = virtualDistances.containsKey(neighborPos)
+                                    ? virtualDistances.get(neighborPos)
+                                    : neighbor.getValue(LeavesBlock.DISTANCE);
+
+                            minDistance = Math.min(minDistance, neighborDist + 1);
+                        }
+                    }
+
+                    if (currentDist != minDistance) {
+                        virtualDistances.put(leafPos, minDistance);
+                        changed = true;
+                    }
+                }
+            }
+            loops++;
+        } while (changed && loops < 10);
+
+        // Bước B: Phá vỡ hoặc cập nhật lại trạng thái thực tế
+        for (BlockPos leafPos : leaves) {
+            BlockState state = level.getBlockState(leafPos);
+
+            if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.DISTANCE) && !state.getValue(LeavesBlock.PERSISTENT)) {
+                int finalDistance = virtualDistances.getOrDefault(leafPos, 7);
+
+                if (finalDistance >= decayThreshold) {
+                    level.destroyBlock(leafPos, true);
+                } else if (finalDistance != state.getValue(LeavesBlock.DISTANCE)) {
+                    level.setBlock(leafPos, state.setValue(LeavesBlock.DISTANCE, finalDistance), 20);
+                }
+            }
+        }
     }
 }

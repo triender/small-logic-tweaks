@@ -32,6 +32,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.level.block.TurtleEggBlock;
+import net.minecraft.world.level.block.state.BlockState;
+
 import java.util.Optional;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
@@ -417,8 +422,8 @@ public class Gametest {
         BlockPos playerSpawnPos = helper.absolutePos(new BlockPos(1, 2, 1));
         mockPlayer.setPos(playerSpawnPos.getX() + 0.5D, playerSpawnPos.getY(), playerSpawnPos.getZ() + 0.5D);
 
-        // Gọi hàm logic (Bây giờ đã chấp nhận tham số Player)
-        SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
+        // Gọi hàm logic với thời gian mất ngủ giả lập và ép vượt qua tỷ lệ roll
+        SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer, 240000, true);
 
         // Kiểm tra kết quả
         helper.succeedWhen(() -> {
@@ -567,7 +572,17 @@ public class Gametest {
             helper.assertTrue(foundRecipe,
                     "Lỗi công thức nấu: Không tìm thấy BrewingRecipe (POISONOUS_POTATO + AWKWARD → POISON) trong RecipeManager.");
         } else {
-            // Khi tính năng tắt, recipe JSON không được load (hoặc test bỏ qua)
+            // Khi tính năng tắt, recipe JSON không được nạp vào RecipeManager
+            boolean foundRecipe = allBrewingRecipes.stream().anyMatch(rh -> {
+                var recipe = rh.value();
+                ItemStack awkwardPotion = new ItemStack(Items.POTION);
+                awkwardPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                        new net.minecraft.world.item.alchemy.PotionContents(Potions.AWKWARD));
+                var brewInput = new net.minecraft.world.item.crafting.BrewingInput(
+                        awkwardPotion, new ItemStack(Items.POISONOUS_POTATO));
+                return recipe.matches(brewInput, helper.getLevel());
+            });
+            helper.assertFalse(foundRecipe, "Lỗi công thức nấu: Cấu hình tắt nhưng BrewingRecipe vẫn tồn tại.");
             helper.succeed();
             return;
         }
@@ -602,7 +617,7 @@ public class Gametest {
             }
             
             // 1. Không mang Elytra -> Không spawn (240k < 300k)
-            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
+            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer, 240000, true);
             var phantomsBefore = helper.getLevel().getEntitiesOfClass(
                     net.minecraft.world.entity.monster.Phantom.class,
                     helper.getBounds().inflate(12.0, 45.0, 12.0)
@@ -611,7 +626,7 @@ public class Gametest {
             
             // 2. Mang Elytra ở slot Chest -> Có spawn (240k >= 72k)
             mockPlayer.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));
-            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer);
+            SmallLogicTweaksEvents.executePhantomSpawnLogic(helper.getLevel(), mockPlayer, 240000, true);
             
             helper.succeedWhen(() -> {
                 var phantomsAfter = helper.getLevel().getEntitiesOfClass(
@@ -1278,6 +1293,427 @@ public class Gametest {
         double expectedY = absPath.getY() + 1.0;
         helper.assertTrue(mockPlayer.getY() >= expectedY - 0.001,
                 "Người chơi dù đứng ở mép biên khi Shift vẫn phải được bù đắp Y lên 1.0 thông qua AABB intersection. Thực tế Y: " + mockPlayer.getY());
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Sửa chữa công cụ bằng nguyên liệu thô bảo toàn Prior Work Penalty (không nhân đôi cộng 1).
+     * [EN] Test: Repairing tool with raw materials preserves Prior Work Penalty (does not double + 1).
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilPreserveRepairDurabilityCost(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED) {
+            helper.succeed();
+            return;
+        }
+
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos anvilPos = new BlockPos(1, 2, 1);
+        helper.setBlock(anvilPos, Blocks.ANVIL);
+        AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+        ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe.setDamageValue(500);
+        pickaxe.set(DataComponents.REPAIR_COST, 15);
+
+        ItemStack diamond = new ItemStack(Items.DIAMOND);
+
+        menu.getSlot(0).set(pickaxe);
+        menu.getSlot(1).set(diamond);
+        menu.createResult();
+
+        ItemStack result = menu.getSlot(2).getItem();
+        helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả trên đe không được rỗng sau khi sửa bằng kim cương");
+        int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+        helper.assertTrue(penalty == 15,
+                "Điểm phạt Prior Work Penalty phải được giữ nguyên ở mức 15 thay vì nhảy lên 31 theo vanilla. Thực tế: " + penalty);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Ghép 2 công cụ cùng loại không có bùa nâng cấp bảo toàn điểm phạt lớn nhất giữa 2 vật phẩm.
+     * [EN] Test: Combining two like items without upgrades preserves max penalty between them.
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilPreserveRepairLikeItemsNoUpgrades(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED) {
+            helper.succeed();
+            return;
+        }
+
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos anvilPos = new BlockPos(1, 2, 1);
+        helper.setBlock(anvilPos, Blocks.ANVIL);
+        AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+        ItemStack pickaxe1 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe1.setDamageValue(500);
+        pickaxe1.set(DataComponents.REPAIR_COST, 15);
+
+        ItemStack pickaxe2 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe2.setDamageValue(300);
+        pickaxe2.set(DataComponents.REPAIR_COST, 7);
+
+        menu.getSlot(0).set(pickaxe1);
+        menu.getSlot(1).set(pickaxe2);
+        menu.createResult();
+
+        ItemStack result = menu.getSlot(2).getItem();
+        helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả trên đe không được rỗng khi ghép 2 cúp");
+        int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+        helper.assertTrue(penalty == 15,
+                "Điểm phạt phải là max(15, 7) = 15 mà không bị nhân đôi phạt. Thực tế: " + penalty);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Nâng cấp cấp độ bùa phép phải tăng điểm phạt Prior Work Penalty theo vanilla.
+     * [EN] Test: Upgrading enchantment level must scale Prior Work Penalty according to vanilla.
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilEnchantUpgradeScalesRepairCost(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED) {
+            helper.succeed();
+            return;
+        }
+
+        var registry = helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+        var unbreakingHolder = registry.getOrThrow(net.minecraft.world.item.enchantment.Enchantments.UNBREAKING);
+
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos anvilPos = new BlockPos(1, 2, 1);
+        helper.setBlock(anvilPos, Blocks.ANVIL);
+        AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+        ItemStack pickaxe1 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe1.enchant(unbreakingHolder, 1);
+        pickaxe1.set(DataComponents.REPAIR_COST, 15);
+
+        ItemStack pickaxe2 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe2.enchant(unbreakingHolder, 2);
+        pickaxe2.set(DataComponents.REPAIR_COST, 0);
+
+        menu.getSlot(0).set(pickaxe1);
+        menu.getSlot(1).set(pickaxe2);
+        menu.createResult();
+
+        ItemStack result = menu.getSlot(2).getItem();
+        helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả không được rỗng khi ghép nâng cấp bùa");
+        int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+        helper.assertTrue(penalty == 31,
+                "Khi có bùa phép được nâng cấp bậc, điểm phạt phải tăng lên 31 (15 * 2 + 1). Thực tế: " + penalty);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Đổi tên công cụ bảo toàn Prior Work Penalty.
+     * [EN] Test: Renaming tool preserves Prior Work Penalty.
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilRenamingPreservesRepairCost(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED) {
+            helper.succeed();
+            return;
+        }
+
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos anvilPos = new BlockPos(1, 2, 1);
+        helper.setBlock(anvilPos, Blocks.ANVIL);
+        AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+        ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe.set(DataComponents.REPAIR_COST, 15);
+
+        menu.getSlot(0).set(pickaxe);
+        menu.setItemName("Excalibur");
+        menu.createResult();
+
+        ItemStack result = menu.getSlot(2).getItem();
+        helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả không được rỗng khi đổi tên");
+        int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+        helper.assertTrue(penalty == 15,
+                "Đổi tên công cụ phải giữ nguyên điểm phạt là 15. Thực tế: " + penalty);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Khi tắt cấu hình ENABLE_ANVIL_PRESERVED, hành vi đe quay về nhân đôi điểm phạt chuẩn vanilla.
+     * [EN] Test: When ENABLE_ANVIL_PRESERVED is disabled, anvil penalty behavior falls back to vanilla doubling.
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilDisabledConfigScalesPenalty(GameTestHelper helper) {
+        boolean originalConfig = SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED;
+        try {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED = false;
+
+            Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+            BlockPos anvilPos = new BlockPos(1, 2, 1);
+            helper.setBlock(anvilPos, Blocks.ANVIL);
+            AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+            ItemStack pickaxe = new ItemStack(Items.DIAMOND_PICKAXE);
+            pickaxe.setDamageValue(500);
+            pickaxe.set(DataComponents.REPAIR_COST, 15);
+
+            menu.getSlot(0).set(pickaxe);
+            menu.getSlot(1).set(new ItemStack(Items.DIAMOND));
+            menu.createResult();
+
+            ItemStack result = menu.getSlot(2).getItem();
+            helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả không được rỗng");
+            int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+            helper.assertTrue(penalty == 31,
+                    "Khi tắt tính năng, điểm phạt phải tăng lên 31 theo chuẩn vanilla. Thực tế: " + penalty);
+        } finally {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED = originalConfig;
+        }
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Sinh vật thuộc danh sách nhẹ cân (Allay, Bat) không làm suy giảm hoặc phá vỡ trứng rùa khi bước lên.
+     * [EN] Test: Weightless entities (Allay, Bat) do not degrade or destroy turtle eggs when stepping on them.
+     */
+    @GameTest(maxTicks = 10)
+    public void testWeightlessMobsDoNotDestroyTurtleEggs(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_WEIGHTLESS_MOBS) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos eggPos = new BlockPos(1, 2, 1);
+        BlockState eggState = Blocks.TURTLE_EGG.defaultBlockState().setValue(TurtleEggBlock.EGGS, 4);
+        helper.setBlock(eggPos, eggState);
+
+        var allay = helper.spawn(net.minecraft.world.entity.EntityTypes.ALLAY, new BlockPos(1, 2, 1));
+        var bat = helper.spawn(net.minecraft.world.entity.EntityTypes.BAT, new BlockPos(1, 2, 1));
+
+        BlockPos absEggPos = helper.absolutePos(eggPos);
+
+        // Mô phỏng Allay và Bat bước lên khối trứng nhiều lần
+        for (int i = 0; i < 20; i++) {
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), allay);
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), bat);
+        }
+
+        BlockState stateAfter = helper.getBlockState(eggPos);
+        helper.assertTrue(stateAfter.is(Blocks.TURTLE_EGG), "Khối phải vẫn là trứng rùa");
+        int eggsCount = stateAfter.getValue(TurtleEggBlock.EGGS);
+        helper.assertTrue(eggsCount == 4,
+                "Số lượng trứng rùa phải được bảo toàn nguyên vẹn là 4 quả sau khi các sinh vật nhẹ cân dẫm lên. Thực tế: " + eggsCount);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Xác nhận an toàn khi truyền thực thể rỗng (null) và khi tắt cấu hình ENABLE_WEIGHTLESS_MOBS.
+     * [EN] Test: Confirm null-safety and proper behavior when ENABLE_WEIGHTLESS_MOBS is disabled.
+     */
+    @GameTest(maxTicks = 10)
+    public void testWeightlessMobsDisabledSafetyAndNullCheck(GameTestHelper helper) {
+        BlockPos eggPos = new BlockPos(1, 2, 1);
+        BlockState eggState = Blocks.TURTLE_EGG.defaultBlockState().setValue(TurtleEggBlock.EGGS, 4);
+        helper.setBlock(eggPos, eggState);
+        BlockPos absEggPos = helper.absolutePos(eggPos);
+
+        // 1. Kiểm tra an toàn khi entity là null đối với logic canDestroyEgg
+        try {
+            java.lang.reflect.Method canDestroyMethod = TurtleEggBlock.class.getDeclaredMethod(
+                    "canDestroyEgg", ServerLevel.class, BlockPos.class, net.minecraft.world.entity.Entity.class
+            );
+            canDestroyMethod.setAccessible(true);
+            boolean result = (boolean) canDestroyMethod.invoke(Blocks.TURTLE_EGG, helper.getLevel(), absEggPos, null);
+            helper.assertFalse(result, "canDestroyEgg với entity rỗng (null) không được phép phá vỡ trứng");
+        } catch (Exception ex) {
+            helper.fail("canDestroyEgg không được ném ngoại lệ khi entity là null: " + ex.getMessage());
+        }
+
+        // 2. Kiểm tra khi tắt cấu hình
+        boolean original = SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_WEIGHTLESS_MOBS;
+        try {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_WEIGHTLESS_MOBS = false;
+            var bat = helper.spawn(net.minecraft.world.entity.EntityTypes.BAT, new BlockPos(1, 2, 1));
+            // Đảm bảo không ném ngoại lệ khi tắt cấu hình
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), bat);
+        } finally {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_WEIGHTLESS_MOBS = original;
+        }
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Đối chứng tích cực - Zombie (thực thể không thuộc danh sách nhẹ cân)
+     *      dẫm lên trứng rùa phải làm suy giảm hoặc phá vỡ trứng rùa theo cơ chế vanilla.
+     * [EN] Test: Positive control - Zombie (non-weightless entity) stepping on turtle eggs
+     *      must degrade or destroy turtle eggs according to vanilla mechanics.
+     */
+    @GameTest(maxTicks = 20)
+    public void testZombieStillBreaksTurtleEgg(GameTestHelper helper) {
+        BlockPos eggPos = new BlockPos(1, 2, 1);
+        BlockState eggState = Blocks.TURTLE_EGG.defaultBlockState().setValue(TurtleEggBlock.EGGS, 4);
+        helper.setBlock(eggPos, eggState);
+
+        var zombie = helper.spawn(net.minecraft.world.entity.EntityTypes.ZOMBIE, new BlockPos(1, 2, 1));
+        BlockPos absEggPos = helper.absolutePos(eggPos);
+
+        // Trong vanilla TurtleEggBlock.stepOn, có xác suất 1/100 mỗi lần dẫm làm giảm trứng.
+        // Mô phỏng 600 lần bước chân của zombie để đảm bảo tính xác định (xác suất không vỡ < 0.2%).
+        for (int i = 0; i < 600; i++) {
+            BlockState current = helper.getBlockState(eggPos);
+            if (!current.is(Blocks.TURTLE_EGG)) {
+                // Khối trứng đã vỡ hoàn toàn thành AIR
+                break;
+            }
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, current, zombie);
+        }
+
+        BlockState stateAfter = helper.getBlockState(eggPos);
+        boolean eggsDegradedOrBroken = !stateAfter.is(Blocks.TURTLE_EGG) || stateAfter.getValue(TurtleEggBlock.EGGS) < 4;
+        helper.assertTrue(eggsDegradedOrBroken,
+                "Zombie dẫm lên trứng rùa phải làm giảm số lượng trứng hoặc phá vỡ khối trứng theo đúng cơ chế gốc của game.");
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Kiểm tra đầy đủ 5 loài sinh vật nhẹ cân còn lại trong danh sách tag
+     *      (ong, phantom, ghast, vẹt, vex) không làm vỡ hoặc suy giảm trứng rùa.
+     * [EN] Test: Verify all remaining 5 weightless mobs in the tag
+     *      (bee, phantom, ghast, parrot, vex) do not break or degrade turtle eggs.
+     */
+    @GameTest(maxTicks = 15)
+    public void testAllRemainingWeightlessMobsDoNotDestroyTurtleEggs(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_WEIGHTLESS_MOBS) {
+            helper.succeed();
+            return;
+        }
+
+        BlockPos eggPos = new BlockPos(1, 2, 1);
+        BlockState eggState = Blocks.TURTLE_EGG.defaultBlockState().setValue(TurtleEggBlock.EGGS, 4);
+        helper.setBlock(eggPos, eggState);
+        BlockPos absEggPos = helper.absolutePos(eggPos);
+
+        var bee = helper.spawn(net.minecraft.world.entity.EntityTypes.BEE, new BlockPos(1, 2, 1));
+        var phantom = helper.spawn(net.minecraft.world.entity.EntityTypes.PHANTOM, new BlockPos(1, 2, 1));
+        var ghast = helper.spawn(net.minecraft.world.entity.EntityTypes.GHAST, new BlockPos(1, 2, 1));
+        var parrot = helper.spawn(net.minecraft.world.entity.EntityTypes.PARROT, new BlockPos(1, 2, 1));
+        var vex = helper.spawn(net.minecraft.world.entity.EntityTypes.VEX, new BlockPos(1, 2, 1));
+
+        // Mô phỏng cả 5 sinh vật cùng bay lượn và đáp lên trứng rùa
+        for (int i = 0; i < 20; i++) {
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), bee);
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), phantom);
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), ghast);
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), parrot);
+            Blocks.TURTLE_EGG.stepOn(helper.getLevel(), absEggPos, helper.getBlockState(eggPos), vex);
+        }
+
+        BlockState stateAfter = helper.getBlockState(eggPos);
+        helper.assertTrue(stateAfter.is(Blocks.TURTLE_EGG), "Khối phải vẫn là trứng rùa");
+        int eggsCount = stateAfter.getValue(TurtleEggBlock.EGGS);
+        helper.assertTrue(eggsCount == 4,
+                "Toàn bộ 5 loài sinh vật nhẹ cân còn lại dẫm lên không được làm vỡ trứng (phải còn nguyên 4 quả). Thực tế: " + eggsCount);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Ghép 2 vật phẩm cùng chứa bùa chú đã đạt cấp tối đa (ví dụ Silk Touch I)
+     *      không có nâng cấp bùa phép nên bắt buộc phải bảo toàn điểm phạt lớn nhất.
+     * [EN] Test: Combining two items with max-level enchantment (e.g. Silk Touch I)
+     *      has no upgrade, so it must preserve the maximum prior work penalty.
+     */
+    @GameTest(maxTicks = 10)
+    public void testAnvilMaxLevelEnchantPreservesPenalty(GameTestHelper helper) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_ANVIL_PRESERVED) {
+            helper.succeed();
+            return;
+        }
+
+        var registry = helper.getLevel().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
+        var silkTouchHolder = registry.getOrThrow(net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH);
+
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        BlockPos anvilPos = new BlockPos(1, 2, 1);
+        helper.setBlock(anvilPos, Blocks.ANVIL);
+        AnvilMenu menu = new AnvilMenu(1, player.getInventory(), ContainerLevelAccess.create(helper.getLevel(), helper.absolutePos(anvilPos)));
+
+        ItemStack pickaxe1 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe1.enchant(silkTouchHolder, 1); // Cấp tối đa của Silk Touch là 1
+        pickaxe1.setDamageValue(400);
+        pickaxe1.set(DataComponents.REPAIR_COST, 15);
+
+        ItemStack pickaxe2 = new ItemStack(Items.DIAMOND_PICKAXE);
+        pickaxe2.enchant(silkTouchHolder, 1);
+        pickaxe2.setDamageValue(200);
+        pickaxe2.set(DataComponents.REPAIR_COST, 5);
+
+        menu.getSlot(0).set(pickaxe1);
+        menu.getSlot(1).set(pickaxe2);
+        menu.createResult();
+
+        ItemStack result = menu.getSlot(2).getItem();
+        helper.assertFalse(result.isEmpty(), "Vật phẩm kết quả không được rỗng khi ghép 2 cúp có Silk Touch I");
+        int penalty = result.getOrDefault(DataComponents.REPAIR_COST, 0);
+        helper.assertTrue(penalty == 15,
+                "Ghép 2 bùa cùng cấp đã đạt trần tối đa không được tăng điểm phạt (phải giữ 15 thay vì nhảy lên 31). Thực tế: " + penalty);
+
+        helper.succeed();
+    }
+
+    /**
+     * [VI] Bài Test: Kiểm thử cờ REQUIRE_NEIGHBOR_SOURCE của BoneMealHandler.
+     *      Khi bật cờ, nếu không có khối cỏ lân cận thì bột xương không thể biến đổi đất.
+     *      Khi có khối cỏ lân cận thì đất được biến đổi thành khối cỏ thành công.
+     * [EN] Test: Test REQUIRE_NEIGHBOR_SOURCE flag of BoneMealHandler.
+     *      When enabled, bone meal cannot convert dirt without neighboring grass blocks.
+     *      When a neighboring grass block exists, conversion succeeds.
+     */
+    @GameTest(maxTicks = 10)
+    public void testBoneMealSpreadingSourceRequirement(GameTestHelper helper) {
+        boolean originalRequire = SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE;
+        try {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE = true;
+
+            BlockPos isolatedDirt = new BlockPos(1, 2, 1);
+            helper.setBlock(isolatedDirt, Blocks.DIRT);
+
+            Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BONE_MEAL));
+
+            BlockPos absDirt = helper.absolutePos(isolatedDirt);
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absDirt), Direction.UP, absDirt, false);
+
+            // 1. Trường hợp cô lập (không có cỏ xung quanh) -> Phải thất bại (PASS)
+            InteractionResult result1 = net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    helper.getLevel(), player, InteractionHand.MAIN_HAND, hit
+            );
+            helper.assertTrue(result1 == InteractionResult.PASS,
+                    "Khi REQUIRE_NEIGHBOR_SOURCE bật, đất cô lập không có cỏ lân cận không được phép biến đổi");
+            helper.assertBlockPresent(Blocks.DIRT, isolatedDirt);
+
+            // 2. Đặt một khối cỏ lân cận (offset 1, 0, 0)
+            BlockPos neighborGrass = new BlockPos(2, 2, 1);
+            helper.setBlock(neighborGrass, Blocks.GRASS_BLOCK);
+
+            // Tương tác lại -> Phải thành công (SUCCESS) và biến thành GRASS_BLOCK
+            InteractionResult result2 = net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    helper.getLevel(), player, InteractionHand.MAIN_HAND, hit
+            );
+            helper.assertTrue(result2 == InteractionResult.SUCCESS,
+                    "Khi có khối cỏ lân cận, đất phải được biến đổi thành công");
+            helper.assertBlockPresent(Blocks.GRASS_BLOCK, isolatedDirt);
+
+        } finally {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE = originalRequire;
+        }
 
         helper.succeed();
     }

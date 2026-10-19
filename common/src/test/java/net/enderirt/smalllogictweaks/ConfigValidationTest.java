@@ -56,4 +56,23 @@ public class ConfigValidationTest {
         Assertions.assertTrue(config.ENABLE_WEIGHTLESS_MOBS,
                 "ENABLE_WEIGHTLESS_MOBS phải bật theo mặc định (true)");
     }
+
+    @Test
+    public void testAnvilAndWeightlessMobsCommentsRestoredByValidate() {
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+        config._comment_ENABLE_ANVIL_PRESERVED = null;
+        config._comment_ENABLE_WEIGHTLESS_MOBS = null;
+
+        config.validate();
+
+        Assertions.assertNotNull(config._comment_ENABLE_ANVIL_PRESERVED,
+                "validate() phải tự phục hồi comment của ENABLE_ANVIL_PRESERVED");
+        Assertions.assertTrue(config._comment_ENABLE_ANVIL_PRESERVED.contains("anvil") || config._comment_ENABLE_ANVIL_PRESERVED.contains("Anvil"),
+                "Comment phải mô tả đúng tính năng Anvil");
+
+        Assertions.assertNotNull(config._comment_ENABLE_WEIGHTLESS_MOBS,
+                "validate() phải tự phục hồi comment của ENABLE_WEIGHTLESS_MOBS");
+        Assertions.assertTrue(config._comment_ENABLE_WEIGHTLESS_MOBS.contains("turtle eggs"),
+                "Comment phải mô tả đúng tính năng Turtle Eggs");
+    }
 }

@@ -31,6 +31,18 @@ public class ResourceConditionTest {
         SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_CHARCOAL_TO_BLACK_DYE = true;
         Assertions.assertTrue(ConfigFlags.isEnabled("charcoal_dye"),
                 "Resource condition failure: 'charcoal_dye' condition should return true when configuration is enabled.");
+
+        // 3. Kiểm thử điều kiện cho công thức ủ thuốc khoai tây độc (Poisonous Potato Brewing)
+
+        // Trường hợp 1: Tắt config -> Điều kiện nạp phải trả về false
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING = false;
+        Assertions.assertFalse(ConfigFlags.isEnabled("poisonous_potato_brewing"),
+                "Resource condition failure: 'poisonous_potato_brewing' condition should return false when configuration is disabled.");
+
+        // Trường hợp 2: Bật config -> Điều kiện nạp phải trả về true
+        SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING = true;
+        Assertions.assertTrue(ConfigFlags.isEnabled("poisonous_potato_brewing"),
+                "Resource condition failure: 'poisonous_potato_brewing' condition should return true when configuration is enabled.");
     }
 
     @Test

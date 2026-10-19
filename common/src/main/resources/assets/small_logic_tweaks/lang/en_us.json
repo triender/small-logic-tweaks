@@ -1,4 +1,5 @@
 {
   "enchantment.small_logic_tweaks.timber": "Timber",
-  "enchantment.small_logic_tweaks.timber.desc": "Chops down the entire tree when a single log is broken."
+  "enchantment.small_logic_tweaks.timber.desc": "Chops down the entire tree when a single log is broken.",
+  "chat.small_logic_tweaks.config_out_of_bounds": "§e[Small Logic Tweaks] Server configuration is out of safe bounds. Some tweaks are disabled locally."
 }

@@ -1,10 +1,9 @@
 # 🛠️ Unreleased (Đang phát triển)
 
-### ✨ Added
-* **NeoForge support:** Small Logic Tweaks is now also available for NeoForge as a separate download, with the same tweaks and the same configuration file. On Minecraft 26.3 the NeoForge build is published as a beta while NeoForge 26.3 itself is in beta.
-
 ---
 # 🔨 Memory Preserved & 🐢 Weightless Creatures Update (Version 1.6.0)
+
+Welcome to the 1.6.0 release of Small Logic Tweaks! This update currently focuses on Minecraft 26.3, introducing routine anvil preservation and delicate mob protection for turtle eggs. Corresponding releases for Minecraft 26.2 and 26.1.2 will be added in upcoming updates.
 
 ### ✨ Added
 
@@ -13,15 +12,17 @@
 * **Progression-only penalty scaling:** Only applying new enchantments or upgrading existing enchantment tiers will increment the anvil penalty cost.
 * **Configurable:** Added `ENABLE_ANVIL_PRESERVED` toggle in the configuration file (default: `true`).
 
-**🐢 Weightless creatures (MC-248332):**
+**🐢 Weightless creatures:**
 * **Delicate footsteps:** Floating, winged, and ethereal creatures (bats, bees, allays, phantoms, ghasts, parrots, vexes) no longer trample and destroy turtle eggs when flying or landing on them.
 * **Data-driven entity tag:** Introduced `#small_logic_tweaks:cannot_break_turtle_eggs` entity type tag to fully customize which delicate mobs are exempt from breaking turtle eggs.
 * **Configurable:** Added `ENABLE_WEIGHTLESS_MOBS` toggle in the configuration file (default: `true`).
 
 ### ⚙️ Changed
+* **Modular architecture:** Decoupled codebase into a shared `common` module and platform-specific loader modules to prepare for multi-loader support in future releases.
 * **Distribution JAR optimization:** Excluded internal GameTest classes and DataGenerator files from the production distribution JAR and sources JAR, reducing artifact size by ~20% (from 97.6 KB to 78.6 KB).
 
 **Status:** Release. Feedback is welcome!
+
 
 ---
 # 🌱 Dirt Reversion & 🍳 Aesthetic Kitchen Update (Version 1.5.0)

@@ -69,23 +69,27 @@ public final class EndPhantomHandler {
      * @param player VI: Người chơi kiểm tra / EN: Player to check
      */
     public static void executePhantomSpawnLogic(ServerLevel level, Player player) {
-        // Nhận diện xem người chơi có phải là Mock/Fake Player trong GameTest hay không
-        boolean isMockPlayer = player.getClass().getSimpleName().contains("Mock")
-                || player.getClass().getSimpleName().contains("GameTest")
-                || !(player instanceof ServerPlayer);
-
-        // 1. Kiểm tra Stat an toàn (Vì MockPlayer không có StatManager thực tế)
-        int timeSinceRest;
-        if (!isMockPlayer) {
-            ServerPlayer sp = (ServerPlayer) player;
-            timeSinceRest = sp.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
-        } else {
-            // Nếu là MockPlayer trong GameTest, giả định người chơi đã thức rất lâu (ví dụ 10 ngày)
-            // để logic spawn luôn được kích hoạt
-            timeSinceRest = 240000;
+        int timeSinceRest = 0;
+        if (player instanceof ServerPlayer sp) {
+            var stats = sp.getStats();
+            if (stats != null) {
+                timeSinceRest = stats.getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST));
+            }
         }
+        executePhantomSpawnLogic(level, player, timeSinceRest, false);
+    }
 
-        // 2. Kiểm tra cánh cứng Elytra
+    /**
+     * VI: Thực thi thuật toán kiểm tra và sinh Phantom với thời gian mất ngủ được chỉ định.
+     * EN: Executes evaluation and spawn logic for Phantoms with specified insomnia ticks.
+     *
+     * @param level         VI: Cấp độ server / EN: Server level
+     * @param player        VI: Người chơi kiểm tra / EN: Player to check
+     * @param timeSinceRest VI: Thời gian mất ngủ (ticks) / EN: Time since rest in ticks
+     * @param forceRollPass VI: True nếu ép tỉ lệ ngẫu nhiên luôn đạt (hỗ trợ kiểm thử) / EN: True to bypass RNG for testing
+     */
+    public static void executePhantomSpawnLogic(ServerLevel level, Player player, int timeSinceRest, boolean forceRollPass) {
+        // 1. Kiểm tra cánh cứng Elytra
         boolean hasElytra = player.getInventory().hasAnyMatching(stack -> stack.is(Items.ELYTRA))
                 || player.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA);
 
@@ -93,12 +97,10 @@ public final class EndPhantomHandler {
                 ? SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_POST_ELYTRA
                 : SmallLogicTweaksConfig.ACTIVE_INSTANCE.PHANTOM_THRESHOLD_PRE_ELYTRA;
 
-        // 3. Logic Roll RNG và Spawn
+        // 2. Logic Roll RNG và Spawn
         if (timeSinceRest > 0 && timeSinceRest >= currentInsomniaThreshold) {
             var random = level.getRandom();
-
-            // Trong GameTest, ép cho rollValue luôn đạt chuẩn để tránh tính bất định khi kiểm thử
-            int rollValue = isMockPlayer ? timeSinceRest : random.nextInt(timeSinceRest);
+            int rollValue = forceRollPass ? timeSinceRest : random.nextInt(timeSinceRest);
 
             if (rollValue >= currentInsomniaThreshold) {
                 var nearbyPhantoms = level.getEntitiesOfClass(
