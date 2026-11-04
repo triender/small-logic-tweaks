@@ -155,6 +155,13 @@ Tool identity is intentional:
 - Intended to coexist with most QoL and world-generation mods
 - Multiplayer requires installation on both client and server for synchronized behavior (client and server must use the same loader)
 
+## Safe Removal & World Persistence
+
+Small Logic Tweaks is intentionally designed to be **safe to remove at any time** without corrupting world saves or breaking persistent data:
+- **Zero Custom Blocks or Items**: The mod adds no custom block, item, or block entity registry entries, ensuring existing chunks and containers load seamlessly in pure Vanilla environments.
+- **Graceful Degradation**: Custom data-driven enchantments (such as **Timber**) are safely stripped by the Vanilla engine upon removal, leaving tools and their standard Vanilla enchantments (e.g. Unbreaking) intact.
+- **Automated Verification**: Clean uninstallation and world save integrity are verified via an automated two-phase integration test (`scripts/test_clean_removal.ps1`) across both modloader and pure Vanilla server runtimes.
+
 ## Roadmap (Planned / Investigating)
 
 The following concepts are being explored and may release in any order.
