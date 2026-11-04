@@ -1,8 +1,6 @@
-# CLAUDE.md
+# KNOWLEDGE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
+This file provides architectural guidance and project knowledge when working with code in this repository.
 
 Small Logic Tweaks is a Minecraft mod for Fabric (Quilt-compatible) and NeoForge ("Vanilla+" style) that fixes specific logic/behavior friction points (e.g. Bone Meal on dirt, tree felling ("Timber"), jungle sapling drop rates, magma-block cooking) without adding tech progression or automation. See `README.md` for the full feature list and `DESIGN.md` for the design rationale behind each tweak (useful context when a change touches gameplay balance, not just code).
 

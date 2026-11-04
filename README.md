@@ -159,6 +159,19 @@ Tool identity is intentional:
 
 The following concepts are being explored and may release in any order.
 
+### Cauldron dye washing
+- Wash dyed wool, carpets, and terracotta in water cauldrons back to their undyed variants (white wool, white carpet, uncolored terracotta).
+- Consumes one water level per item washed, preserving Vanilla parity with banner and shulker box washing.
+
+### Dispenser tool parity: axe stripping and scraping
+- Dispensers loaded with axes can strip bark from logs placed directly in front of them.
+- Scrapes wax and removes oxidation stages from copper blocks, completing symmetry with honeycomb waxing.
+- Consumes tool durability natively.
+
+### Lever stone crafting parity
+- Expands the lever recipe to accept Cobbled Deepslate and Blackstone via `#minecraft:stone_crafting_materials`.
+- Ensures underground mining and Nether survival players can craft basic redstone levers without surface cobblestone.
+
 ### Sawmill
 - improves plank and byproduct yield relative to baseline crafting recipes
 - improved decorative workflow support

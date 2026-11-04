@@ -1,5 +1,12 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+### 🔧 Fixed
+* **[Only for 26.3] Item Tag Path:** Migrated #small_logic_tweaks:magma_cookable tag to tags/item/ and standardized raw meat item IDs to minecraft:beef, minecraft:porkchop, minecraft:chicken, minecraft:mutton, minecraft:rabbit for full Minecraft 26.3 parity.
+
+### ⚙️ Changed
+* **Automated Testing:** Added standalone two-phase pipeline scripts/test_clean_removal.ps1 to automatically verify clean mod removal and world integrity on both Fabric Loader and pure Vanilla servers.
+* **Documentation & Standards:** Renamed CLAUDE.md to KNOWLEDGE.md, documented upcoming concepts in README.md, and established project-wide English-first documentation standards in .agents/AGENTS.md.
+
 ---
 # 🔨 Memory Preserved & 🐢 Weightless Creatures Update (Version 1.6.0)
 
