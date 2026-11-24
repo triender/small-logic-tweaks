@@ -205,8 +205,11 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
 
     public int getCookTime(net.minecraft.world.item.Item item) {
         String key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
-        if (this.magmaCookTimes != null && this.magmaCookTimes.containsKey(key)) {
-            return this.magmaCookTimes.get(key);
+        if (this.magmaCookTimes != null) {
+            Integer cookTime = this.magmaCookTimes.get(key);
+            if (cookTime != null && cookTime >= 1 && cookTime <= 72000) {
+                return cookTime;
+            }
         }
         return this.DEFAULT_COOK_TIME;
     }
@@ -275,6 +278,24 @@ public class SmallLogicTweaksConfig extends BaseModConfig {
         if (this.PHANTOM_MAX_SPAWN_HEIGHT < this.PHANTOM_MIN_SPAWN_HEIGHT || this.PHANTOM_MAX_SPAWN_HEIGHT > 320) {
             SltError.CFG_OUT_OF_BOUNDS.logError(LOGGER, "PHANTOM_MAX_SPAWN_HEIGHT", this.PHANTOM_MAX_SPAWN_HEIGHT, this.PHANTOM_MIN_SPAWN_HEIGHT, 320, this.PHANTOM_MIN_SPAWN_HEIGHT);
             this.PHANTOM_MAX_SPAWN_HEIGHT = this.PHANTOM_MIN_SPAWN_HEIGHT;
+        }
+
+        if (this.magmaCookTimes == null) {
+            this.magmaCookTimes = new java.util.LinkedHashMap<>();
+        } else {
+            var iterator = this.magmaCookTimes.entrySet().iterator();
+            while (iterator.hasNext()) {
+                var entry = iterator.next();
+                String key = entry.getKey();
+                Integer value = entry.getValue();
+                if (key == null || key.isBlank() || value == null) {
+                    SltError.CFG_OUT_OF_BOUNDS.logError(LOGGER, "magmaCookTimes[" + key + "]", value, 1, 72000, this.DEFAULT_COOK_TIME);
+                    iterator.remove();
+                } else if (value < 1 || value > 72000) {
+                    SltError.CFG_OUT_OF_BOUNDS.logError(LOGGER, "magmaCookTimes[" + key + "]", value, 1, 72000, this.DEFAULT_COOK_TIME);
+                    entry.setValue(this.DEFAULT_COOK_TIME);
+                }
+            }
         }
     }
 

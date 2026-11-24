@@ -75,4 +75,36 @@ public class ConfigValidationTest {
         Assertions.assertTrue(config._comment_ENABLE_WEIGHTLESS_MOBS.contains("turtle eggs"),
                 "Comment phải mô tả đúng tính năng Turtle Eggs");
     }
+
+    @Test
+    public void testCrossFieldBoundsAndMagmaCookTimesEdgeCases() {
+        SmallLogicTweaksConfig config = new SmallLogicTweaksConfig();
+
+        // 1. Cross-field bounds: MAX < MIN hoặc vượt trần cứng
+        config.PHANTOM_MIN_COUNT = 5;
+        config.PHANTOM_MAX_COUNT = 2;
+        config.PHANTOM_MIN_SPAWN_HEIGHT = 40;
+        config.PHANTOM_MAX_SPAWN_HEIGHT = 10;
+        config.validate();
+        Assertions.assertEquals(5, config.PHANTOM_MAX_COUNT);
+        Assertions.assertEquals(40, config.PHANTOM_MAX_SPAWN_HEIGHT);
+
+        config.PHANTOM_MAX_COUNT = 150;
+        config.PHANTOM_MAX_SPAWN_HEIGHT = 500;
+        config.validate();
+        Assertions.assertEquals(config.PHANTOM_MIN_COUNT, config.PHANTOM_MAX_COUNT);
+        Assertions.assertEquals(config.PHANTOM_MIN_SPAWN_HEIGHT, config.PHANTOM_MAX_SPAWN_HEIGHT);
+
+        // 2. magmaCookTimes == null -> tự khởi tạo map rỗng thay vì NPE
+        config.magmaCookTimes = null;
+        config.validate();
+        Assertions.assertNotNull(config.magmaCookTimes);
+
+        // 3. Key rỗng hoặc toàn khoảng trắng bị loại bỏ
+        config.magmaCookTimes.put("   ", 200);
+        config.magmaCookTimes.put("", 200);
+        config.validate();
+        Assertions.assertFalse(config.magmaCookTimes.containsKey("   "));
+        Assertions.assertFalse(config.magmaCookTimes.containsKey(""));
+    }
 }

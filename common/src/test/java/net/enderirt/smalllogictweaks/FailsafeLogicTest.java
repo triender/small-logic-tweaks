@@ -171,4 +171,43 @@ public class FailsafeLogicTest {
         Assertions.assertNotEquals(keyPlayerA_Timber3, keyPlayerA_Nether,
                 "Cache isolation failure: Different dimensions produced identical cache keys.");
     }
+
+    @Test
+    public void testFailsafeNullAndAllIndividualBoundaryFields() {
+        SmallLogicTweaksConfig base = new SmallLogicTweaksConfig();
+        Assertions.assertFalse(base.fallbackFailsafe(null), "fallbackFailsafe(null) phải trả về false an toàn.");
+
+        // Từng field Timber vượt biên đều phải tắt ENABLE_TIMBER_TWEAK
+        int[][] timberBadCases = {
+                {0, 0}, // MAX_LEAF_DISTANCE (< minInt 1)
+                {1, 0}, // MIN_LEAVES_FOR_TREE (< minInt 1)
+                {2, 99} // DECAY_THRESHOLD (> maxInt 7)
+        };
+        for (int[] c : timberBadCases) {
+            SmallLogicTweaksConfig raw = new SmallLogicTweaksConfig();
+            SmallLogicTweaksConfig safe = new SmallLogicTweaksConfig();
+            if (c[0] == 0) { raw.MAX_LEAF_DISTANCE = c[1]; safe.MAX_LEAF_DISTANCE = c[1]; }
+            if (c[0] == 1) { raw.MIN_LEAVES_FOR_TREE = c[1]; safe.MIN_LEAVES_FOR_TREE = c[1]; }
+            if (c[0] == 2) { raw.DECAY_THRESHOLD = c[1]; safe.DECAY_THRESHOLD = c[1]; }
+            Assertions.assertTrue(safe.fallbackFailsafe(raw));
+            Assertions.assertFalse(safe.ENABLE_TIMBER_TWEAK);
+        }
+
+        // Từng field Phantom vượt biên đều phải tắt ENABLE_END_PHANTOM
+        for (int idx = 0; idx < 7; idx++) {
+            SmallLogicTweaksConfig raw = new SmallLogicTweaksConfig();
+            SmallLogicTweaksConfig safe = new SmallLogicTweaksConfig();
+            switch (idx) {
+                case 0 -> { raw.PHANTOM_MIN_COUNT = 0; safe.PHANTOM_MIN_COUNT = 0; }
+                case 1 -> { raw.PHANTOM_MAX_COUNT = 999; safe.PHANTOM_MAX_COUNT = 999; }
+                case 2 -> { raw.PHANTOM_CHECK_COOLDOWN = 0; safe.PHANTOM_CHECK_COOLDOWN = 0; }
+                case 3 -> { raw.PHANTOM_THRESHOLD_PRE_ELYTRA = 0; safe.PHANTOM_THRESHOLD_PRE_ELYTRA = 0; }
+                case 4 -> { raw.PHANTOM_THRESHOLD_POST_ELYTRA = 0; safe.PHANTOM_THRESHOLD_POST_ELYTRA = 0; }
+                case 5 -> { raw.PHANTOM_MIN_SPAWN_HEIGHT = -1; safe.PHANTOM_MIN_SPAWN_HEIGHT = -1; }
+                case 6 -> { raw.PHANTOM_MAX_SPAWN_HEIGHT = 999; safe.PHANTOM_MAX_SPAWN_HEIGHT = 999; }
+            }
+            Assertions.assertTrue(safe.fallbackFailsafe(raw));
+            Assertions.assertFalse(safe.ENABLE_END_PHANTOM);
+        }
+    }
 }

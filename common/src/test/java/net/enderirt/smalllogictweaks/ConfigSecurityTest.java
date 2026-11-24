@@ -298,4 +298,87 @@ public class ConfigSecurityTest {
         Assertions.assertTrue(deepConfigFile.exists(), "Tệp cấu hình gốc không được tạo ra thành công.");
         Assertions.assertFalse(tempFile.exists(), "Tệp tạm (.tmp) không được dọn dẹp sau khi tráo đổi.");
     }
+
+    // Kiểm tra phòng vệ null và ngoài biên trong magmaCookTimes để tránh NPE hoặc crash server
+    @Test
+    public void testMagmaCookTimesNullAndOutOfBoundsValidation() {
+        String maliciousMapJson = "{\n" +
+                "  \"DEFAULT_COOK_TIME\": 240,\n" +
+                "  \"magmaCookTimes\": {\n" +
+                "    \"minecraft:beef\": null,\n" +
+                "    \"minecraft:cod\": 0,\n" +
+                "    \"minecraft:salmon\": -10,\n" +
+                "    \"minecraft:potato\": 100000,\n" +
+                "    \"minecraft:kelp\": 120\n" +
+                "  }\n" +
+                "}";
+
+        SmallLogicTweaksConfig loaded = SmallLogicTweaksConfig.GSON.fromJson(maliciousMapJson, SmallLogicTweaksConfig.class);
+        Assertions.assertDoesNotThrow(loaded::validate,
+                "validate() không được ném ngoại lệ khi magmaCookTimes chứa giá trị null hoặc ngoài biên.");
+
+        Assertions.assertFalse(loaded.magmaCookTimes.containsKey("minecraft:beef"),
+                "Entry có giá trị null trong magmaCookTimes phải bị loại bỏ.");
+        Assertions.assertEquals(240, loaded.magmaCookTimes.get("minecraft:cod"),
+                "Giá trị 0 (< 1) trong magmaCookTimes phải được đặt lại về DEFAULT_COOK_TIME.");
+        Assertions.assertEquals(240, loaded.magmaCookTimes.get("minecraft:salmon"),
+                "Giá trị âm trong magmaCookTimes phải được đặt lại về DEFAULT_COOK_TIME.");
+        Assertions.assertEquals(240, loaded.magmaCookTimes.get("minecraft:potato"),
+                "Giá trị > 72000 trong magmaCookTimes phải được đặt lại về DEFAULT_COOK_TIME.");
+        Assertions.assertEquals(120, loaded.magmaCookTimes.get("minecraft:kelp"),
+                "Giá trị hợp lệ trong magmaCookTimes phải được giữ nguyên.");
+    }
+
+    @Test
+    public void testBaseModConfigEdgeCasesAndFallbacks(@TempDir Path tempDir) throws IOException {
+        // 1. Khởi tạo lần đầu khi file chưa tồn tại (kèm logger != null)
+        File freshFile = tempDir.resolve("sub/fresh_config.json").toFile();
+        SmallLogicTweaksConfig created = BaseModConfig.loadOrCreate(
+                freshFile,
+                SmallLogicTweaksConfig.class,
+                SmallLogicTweaksConfig::new,
+                SmallLogicTweaksConfig.GSON,
+                SmallLogicTweaksCommon.LOGGER,
+                SltError.CFG_CORRUPTED,
+                SltError.CFG_SAVE_FAILED
+        );
+        Assertions.assertTrue(freshFile.exists(), "Tệp cấu hình mới phải được tạo khi chưa tồn tại.");
+        Assertions.assertEquals(5, created.MAX_LOG_HORIZONTAL_RADIUS);
+
+        // 2. File có nội dung "null" -> rawObject == null -> fallback an toàn
+        File nullFile = tempDir.resolve("null_config.json").toFile();
+        Files.writeString(nullFile.toPath(), "null");
+        SmallLogicTweaksConfig fromNull = BaseModConfig.loadOrCreate(
+                nullFile,
+                SmallLogicTweaksConfig.class,
+                SmallLogicTweaksConfig::new,
+                SmallLogicTweaksConfig.GSON,
+                SmallLogicTweaksCommon.LOGGER,
+                SltError.CFG_CORRUPTED,
+                SltError.CFG_SAVE_FAILED
+        );
+        Assertions.assertNotNull(fromNull);
+        Assertions.assertEquals(5, fromNull.MAX_LOG_HORIZONTAL_RADIUS);
+
+        // 3. Overload 1 tham số của normalizeJsonObject và khóa lạ không khớp field nào
+        JsonObject raw = SmallLogicTweaksConfig.GSON.fromJson("{\"  mysteryKey  \": 42}", JsonObject.class);
+        JsonObject normalizedNoClass = BaseModConfig.normalizeJsonObject(raw);
+        Assertions.assertTrue(normalizedNoClass.has("MYSTERYKEY"));
+
+        // 4. validateAnnotatedFields overload 1 tham số + fallback log khi không truyền outOfBoundsError
+        SmallLogicTweaksConfig outConfig = new SmallLogicTweaksConfig();
+        outConfig.MAX_LOG_HORIZONTAL_RADIUS = 999;
+        outConfig.validateAnnotatedFields(SmallLogicTweaksCommon.LOGGER);
+        Assertions.assertEquals(5, outConfig.MAX_LOG_HORIZONTAL_RADIUS);
+        outConfig.MAX_LOG_HORIZONTAL_RADIUS = -1;
+        outConfig.validateAnnotatedFields(null, null);
+        Assertions.assertEquals(5, outConfig.MAX_LOG_HORIZONTAL_RADIUS);
+
+        // 5. saveAtomically khi đích ghi là một thư mục đang tồn tại -> kích hoạt catch IOException và dọn .tmp
+        File dirTarget = tempDir.resolve("blocked_target").toFile();
+        Assertions.assertTrue(dirTarget.mkdirs());
+        File tmpLeftover = new File(dirTarget.getParentFile(), dirTarget.getName() + ".tmp");
+        BaseModConfig.saveAtomically(dirTarget, new SmallLogicTweaksConfig(), SmallLogicTweaksConfig.GSON, SmallLogicTweaksCommon.LOGGER);
+        Assertions.assertFalse(tmpLeftover.exists(), "Tệp .tmp phải được dọn dẹp kể cả khi ATOMIC_MOVE thất bại.");
+    }
 }
