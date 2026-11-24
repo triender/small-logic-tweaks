@@ -54,7 +54,7 @@ public final class DirtReversionHandler {
      */
     public static InteractionResult handlePickaxeReversion(Level world, Player player, InteractionHand hand, BlockHitResult hitResult) {
         if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_PICKAXE_DIRT_REVERSION) return InteractionResult.PASS;
-        if (player.isSpectator()) return InteractionResult.PASS;
+        if (player.isSpectator() || !player.mayBuild()) return InteractionResult.PASS;
 
         ItemStack stack = player.getItemInHand(hand);
 

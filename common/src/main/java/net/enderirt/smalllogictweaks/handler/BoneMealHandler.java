@@ -38,7 +38,7 @@ public final class BoneMealHandler {
      */
     public static InteractionResult handleBoneMeal(Level world, Player player, InteractionHand hand, BlockHitResult hitResult) {
         if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_BONE_MEAL_TWEAK) return InteractionResult.PASS;
-        if (player.isSpectator()) return InteractionResult.PASS;
+        if (player.isSpectator() || !player.mayBuild()) return InteractionResult.PASS;
 
         ItemStack stack = player.getItemInHand(hand);
         BlockPos pos = hitResult.getBlockPos();

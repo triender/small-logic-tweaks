@@ -84,7 +84,7 @@ public final class ConcreteHardeningHandler {
      * @return          VI: Kết quả tương tác / EN: Interaction result
      */
     public static InteractionResult handleWaterBottle(Level world, Player player, InteractionHand hand, BlockHitResult hitResult) {
-        if (player.isSpectator() || !SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_HYDRO_HARDENING) {
+        if (player.isSpectator() || !player.mayBuild() || !SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_HYDRO_HARDENING) {
             return InteractionResult.PASS;
         }
 
