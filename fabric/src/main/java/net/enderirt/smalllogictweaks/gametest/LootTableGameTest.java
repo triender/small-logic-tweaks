@@ -63,4 +63,35 @@ public class LootTableGameTest {
 
         helper.succeed();
     }
+
+    @GameTest(maxTicks = 10)
+    public void testJungleLeavesShearsAndSilkTouchDropLeaves(GameTestHelper helper) {
+        ServerLevel serverLevel = helper.getLevel();
+        BlockPos absolutePos = helper.absolutePos(new BlockPos(1, 2, 1));
+        BlockState jungleLeavesState = Blocks.JUNGLE_LEAVES.defaultBlockState();
+
+        // 1. Shears phải rơi đúng Jungle Leaves thay vì Sapling/Stick
+        LootParams.Builder shearsLoot = new LootParams.Builder(serverLevel)
+                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(absolutePos))
+                .withParameter(LootContextParams.TOOL, new ItemStack(Items.SHEARS));
+        List<ItemStack> shearsDrops = jungleLeavesState.getDrops(shearsLoot);
+        helper.assertTrue(shearsDrops.stream().anyMatch(s -> s.is(Items.JUNGLE_LEAVES)),
+                "Phá Jungle Leaves bằng Shears phải rơi khối Jungle Leaves.");
+
+        // 2. Công cụ có Silk Touch phải rơi đúng Jungle Leaves
+        ItemStack silkAxe = new ItemStack(Items.DIAMOND_AXE);
+        var silkTouch = serverLevel.registryAccess()
+                .lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT)
+                .getOrThrow(net.minecraft.world.item.enchantment.Enchantments.SILK_TOUCH);
+        silkAxe.enchant(silkTouch, 1);
+
+        LootParams.Builder silkLoot = new LootParams.Builder(serverLevel)
+                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(absolutePos))
+                .withParameter(LootContextParams.TOOL, silkAxe);
+        List<ItemStack> silkDrops = jungleLeavesState.getDrops(silkLoot);
+        helper.assertTrue(silkDrops.stream().anyMatch(s -> s.is(Items.JUNGLE_LEAVES)),
+                "Phá Jungle Leaves bằng công cụ có Silk Touch phải rơi khối Jungle Leaves.");
+
+        helper.succeed();
+    }
 }

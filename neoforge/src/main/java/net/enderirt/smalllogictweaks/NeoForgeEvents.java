@@ -34,8 +34,20 @@ public final class NeoForgeEvents {
         NeoForge.EVENT_BUS.addListener(NeoForgeEvents::onChangedDimension);
         NeoForge.EVENT_BUS.addListener(NeoForgeEvents::onPlayerClone);
         NeoForge.EVENT_BUS.addListener(NeoForgeEvents::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(NeoForgeEvents::onLootTableLoad);
         modBus.addListener(NeoForgeEvents::onModifyDefaultComponents);
         SmallLogicTweaksCommon.LOGGER.info("Small logic Tweaks Mod register success!!");
+    }
+
+    private static void onLootTableLoad(net.neoforged.neoforge.event.LootTableLoadEvent event) {
+        if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY
+                && event.getName().equals(net.enderirt.smalllogictweaks.util.JungleLootHelper.JUNGLE_LEAVES_LOOT_ID)
+                && event.getRegistries() instanceof net.minecraft.core.HolderLookup.Provider provider) {
+            var override = net.enderirt.smalllogictweaks.util.JungleLootHelper.loadJungleLeavesOverride(provider);
+            if (override != null) {
+                event.setTable(override);
+            }
+        }
     }
 
     // Same order as Fabric's UseBlockCallback listeners: the first non-PASS result wins

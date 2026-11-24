@@ -51,7 +51,18 @@ public final class SmallLogicTweaksEvents {
         registerHydroHardeningTweak();
         registerPickaxeDirtReversionTweak();
         registerEndPhantomTweak();
+        registerJungleSustainabilityTweak();
         LOGGER.info("Small logic Tweaks Mod register success!!");
+    }
+
+    private static void registerJungleSustainabilityTweak() {
+        net.fabricmc.fabric.api.loot.v3.LootTableEvents.REPLACE.register((key, original, source, registries) -> {
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_JUNGLE_SUSTAINABILITY
+                    && key.equals(net.enderirt.smalllogictweaks.util.JungleLootHelper.JUNGLE_LEAVES_LOOT_KEY)) {
+                return net.enderirt.smalllogictweaks.util.JungleLootHelper.loadJungleLeavesOverride(registries);
+            }
+            return null;
+        });
     }
 
     private static void registerBoneMealTweak() {
