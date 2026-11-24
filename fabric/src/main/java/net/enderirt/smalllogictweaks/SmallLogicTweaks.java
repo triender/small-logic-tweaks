@@ -41,5 +41,8 @@ public class SmallLogicTweaks implements ModInitializer {
 
 		// Kiểm tra mixin cho boot test (chỉ chạy khi có -Dslt.mixinAudit=true)
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> SmallLogicTweaksCommon.runMixinAuditIfRequested());
+
+		// Dọn dẹp trạng thái đặt chỗ bếp khi dừng server để tránh rò rỉ sang thế giới khác
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> net.enderirt.smalllogictweaks.network.KitchenRegistry.clear());
 	}
 }

@@ -35,6 +35,10 @@ public class SmallLogicTweaksNeoForge {
 
         // Kiểm tra mixin cho boot test (chỉ chạy khi có -Dslt.mixinAudit=true)
         NeoForge.EVENT_BUS.addListener((ServerStartedEvent event) -> SmallLogicTweaksCommon.runMixinAuditIfRequested());
+
+        // Dọn dẹp trạng thái đặt chỗ bếp khi dừng server để tránh rò rỉ sang thế giới khác
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.server.ServerStoppingEvent event) ->
+                net.enderirt.smalllogictweaks.network.KitchenRegistry.clear());
     }
 
     // Optional: clients without the mod (or vanilla clients) can still join, like on Fabric.

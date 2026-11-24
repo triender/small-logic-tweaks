@@ -82,4 +82,29 @@ public class KitchenRegistryTest {
         boolean resultNether = KitchenRegistry.tryReserve(NETHER, samePos, entityNether, 200);
         Assertions.assertTrue(resultNether, "Nether entity should successfully reserve because dimensions are isolated.");
     }
+
+    @Test
+    public void testNullGuardsSameEntityRenewalAndCleanupCap() {
+        BlockPos pos = new BlockPos(5, 64, 5);
+        UUID entityA = UUID.randomUUID();
+
+        // 1. Null guard
+        Assertions.assertFalse(KitchenRegistry.tryReserve(OVERWORLD, null, entityA, 10));
+        Assertions.assertFalse(KitchenRegistry.tryReserve(OVERWORLD, pos, null, 10));
+
+        // 2. Cùng entity giữ lại chính bếp đó trong cùng tick -> vẫn true
+        Assertions.assertTrue(KitchenRegistry.tryReserve(OVERWORLD, pos, entityA, 50));
+        Assertions.assertTrue(KitchenRegistry.tryReserve(OVERWORLD, pos, entityA, 50));
+
+        // 3. Dọn dẹp các đặt chỗ cũ khi vượt quá 256 mục (> currentTick - 100 bị xóa)
+        for (int i = 0; i < 270; i++) {
+            Assertions.assertTrue(KitchenRegistry.tryReserve(OVERWORLD, new BlockPos(i, 64, 0), UUID.randomUUID(), 10));
+        }
+        // Đặt chỗ mới ở tick 500 phải kích hoạt nhánh xóa các mục cũ (< 400) mà không lỗi
+        Assertions.assertTrue(KitchenRegistry.tryReserve(OVERWORLD, pos, entityA, 500));
+
+        // 4. clear() xóa sạch trạng thái đặt chỗ để entity khác có thể dùng lại ở cùng tick 500
+        KitchenRegistry.clear();
+        Assertions.assertTrue(KitchenRegistry.tryReserve(OVERWORLD, pos, UUID.randomUUID(), 500));
+    }
 }
