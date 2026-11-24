@@ -1,6 +1,6 @@
 {
     "platforms": {
-        "modrinth":   { "enabled": true,  "project": "small-logic-tweak" },
+        "modrinth":   { "enabled": true,  "project": "LCGTe7BI" },
         "curseforge": { "enabled": false, "project_id": 0 },
         "github":     { "enabled": true,  "repo": "triender/small-logic-tweaks" },
         "git_push":   { "enabled": true,  "remote": "origin" }

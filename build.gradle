@@ -134,7 +134,7 @@ def modrinthChangelog = getChangelogText()
 //      (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt,neoforge). "quilt" là tag gắn thêm cho jar Fabric.
 // [EN] Release parameters passed by scripts/deploy.ps1 from scripts/deploy_config.json
 //      (-PmodrinthProjectId, -PmodrinthLoaders=fabric,quilt,neoforge). "quilt" is an extra tag on the Fabric jar.
-def releaseProjectId = (project.findProperty("modrinthProjectId") ?: "small-logic-tweak").toString()
+def releaseProjectId = (project.findProperty("modrinthProjectId") ?: "LCGTe7BI").toString()
 def releaseLoaders = (project.findProperty("modrinthLoaders") ?: "fabric").toString().split(",")*.trim().findAll { it }
 def releaseVersionName = "Small Logic Tweaks ${project.version}"
 
