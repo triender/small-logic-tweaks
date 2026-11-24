@@ -27,7 +27,9 @@ import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ComposterBlock;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -104,22 +106,53 @@ public class Gametest {
 
     @GameTest(maxTicks = 10)
     public void testPoisonousPotatoComposter(GameTestHelper helper) {
-        // MC 26.3: ComposterBlock.COMPOSTABLES đã xóa, kiểm tra qua DataComponents.COMPOSTABLE
+        // MC 26.3: ComposterBlock.COMPOSTABLES đã xóa, kiểm tra qua DataComponents.COMPOSTABLE và hành vi ủ thật
         var compostable = Items.POISONOUS_POTATO.components().get(DataComponents.COMPOSTABLE);
+        var vanillaPotatoCompostable = Items.POTATO.components().get(DataComponents.COMPOSTABLE);
         boolean isRegistered = compostable != null;
 
+        BlockPos composterPos = new BlockPos(1, 2, 1);
+        helper.setBlock(composterPos, Blocks.COMPOSTER.defaultBlockState());
+        BlockPos absPos = helper.absolutePos(composterPos);
+        ServerLevel level = helper.getLevel();
+
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
-            // Xác thực trạng thái tồn tại
+            // 1. Xác thực component tồn tại và khớp với chuẩn Khoai tây thường của vanilla (65% tăng 1 tầng)
             helper.assertTrue(isRegistered,
                     "Lỗi Registry: Cấu hình ENABLE_POISONOUS_POTATO_COMPOST đang bật nhưng vật phẩm không được đăng ký vào Thùng ủ phân.");
+            helper.assertTrue(compostable.equals(vanillaPotatoCompostable),
+                    "Lỗi Logic: DataComponents.COMPOSTABLE của Khoai tây độc phải khớp chuẩn Khoai tây vanilla ("
+                            + vanillaPotatoCompostable + "), nhưng thực tế là: " + compostable);
 
-            // Xác thực component tồn tại (ResolvableInt.constant(65) không thể so sánh float)
-            helper.assertTrue(compostable != null && compostable.layers() != null,
-                    "Lỗi Logic: DataComponents.COMPOSTABLE của Khoai tây độc bị null hoặc không hợp lệ.");
+            // 2. Xác thực hành vi thực tế: bỏ 1 củ vào thùng rỗng (LEVEL 0) chỉ lên đúng LEVEL 1 (không đầy ngay)
+            ItemStack firstPotato = new ItemStack(Items.POISONOUS_POTATO);
+            BlockState afterFirst = ComposterBlock.insertItem(null, helper.getBlockState(composterPos), level, firstPotato, absPos);
+            int levelAfterFirst = afterFirst.getValue(ComposterBlock.LEVEL);
+            helper.assertTrue(levelAfterFirst == 1,
+                    "Lỗi Ủ phân: Bỏ 1 củ Khoai tây độc vào thùng rỗng phải lên đúng LEVEL 1, nhưng thực tế là LEVEL " + levelAfterFirst);
+            helper.assertTrue(firstPotato.isEmpty(),
+                    "Lỗi Ủ phân: Khoai tây độc không bị tiêu hao khi bỏ vào thùng ủ.");
+
+            // 3. Từ LEVEL 1 trở đi, mỗi lần bỏ thêm chỉ được tăng 0 hoặc 1 tầng (tuyệt đối không nhảy cóc nhiều tầng)
+            BlockState current = afterFirst;
+            for (int i = 0; i < 6; i++) {
+                int beforeLevel = current.getValue(ComposterBlock.LEVEL);
+                if (beforeLevel >= 7) {
+                    break;
+                }
+                current = ComposterBlock.insertItem(null, current, level, new ItemStack(Items.POISONOUS_POTATO), absPos);
+                int delta = current.getValue(ComposterBlock.LEVEL) - beforeLevel;
+                helper.assertTrue(delta == 0 || delta == 1,
+                        "Lỗi Ủ phân: Mỗi lần bỏ Khoai tây độc chỉ được tăng 0 hoặc 1 tầng, nhưng đã tăng " + delta + " tầng.");
+            }
         } else {
             // Xác thực quá trình tắt tính năng
             helper.assertFalse(isRegistered,
                     "Lỗi Registry: Cấu hình đã tắt nhưng Khoai tây độc vẫn bị nạp trái phép vào hệ thống ủ phân.");
+            ItemStack potato = new ItemStack(Items.POISONOUS_POTATO);
+            BlockState after = ComposterBlock.insertItem(null, helper.getBlockState(composterPos), level, potato, absPos);
+            helper.assertTrue(after.getValue(ComposterBlock.LEVEL) == 0 && potato.getCount() == 1,
+                    "Lỗi Ủ phân: Cấu hình đã tắt nhưng thùng ủ vẫn nhận Khoai tây độc.");
         }
 
         helper.succeed();
@@ -559,18 +592,30 @@ public class Gametest {
 
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_BREWING) {
             // Tìm recipe dùng POISONOUS_POTATO làm reagent + AWKWARD làm input → POISON
-            boolean foundRecipe = allBrewingRecipes.stream().anyMatch(rh -> {
-                var recipe = rh.value();
-                ItemStack awkwardPotion = new ItemStack(Items.POTION);
-                awkwardPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
-                        new net.minecraft.world.item.alchemy.PotionContents(Potions.AWKWARD));
-                var brewInput = new net.minecraft.world.item.crafting.BrewingInput(
-                        awkwardPotion, new ItemStack(Items.POISONOUS_POTATO));
-                return recipe.matches(brewInput, helper.getLevel());
-            });
+            ItemStack awkwardPotion = new ItemStack(Items.POTION);
+            awkwardPotion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.AWKWARD));
+            var brewInput = new net.minecraft.world.item.crafting.BrewingInput(
+                    awkwardPotion, new ItemStack(Items.POISONOUS_POTATO));
 
-            helper.assertTrue(foundRecipe,
+            var matchedHolder = allBrewingRecipes.stream()
+                    .filter(rh -> rh.value().matches(brewInput, helper.getLevel()))
+                    .findFirst();
+
+            helper.assertTrue(matchedHolder.isPresent(),
                     "Lỗi công thức nấu: Không tìm thấy BrewingRecipe (POISONOUS_POTATO + AWKWARD → POISON) trong RecipeManager.");
+
+            ItemStack result = matchedHolder.get().value().assemble(brewInput);
+            var outContents = result.get(DataComponents.POTION_CONTENTS);
+            helper.assertTrue(result.is(Items.POTION) && outContents != null && outContents.is(Potions.POISON),
+                    "Lỗi kết quả nấu: Công thức Khoai tây độc phải tạo ra thuốc Độc (POISON), nhưng kết quả là: " + result);
+
+            // Kiểm tra âm: Bình nước thường không được khớp công thức Awkward -> Poison
+            ItemStack waterPotion = new ItemStack(Items.POTION);
+            waterPotion.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.WATER));
+            var wrongInput = new net.minecraft.world.item.crafting.BrewingInput(
+                    waterPotion, new ItemStack(Items.POISONOUS_POTATO));
+            helper.assertFalse(matchedHolder.get().value().matches(wrongInput, helper.getLevel()),
+                    "Lỗi công thức nấu: Công thức Awkward + Poisonous Potato không được khớp với Water Bottle.");
         } else {
             // Khi tính năng tắt, recipe JSON không được nạp vào RecipeManager
             boolean foundRecipe = allBrewingRecipes.stream().anyMatch(rh -> {
@@ -1715,6 +1760,660 @@ public class Gametest {
             SmallLogicTweaksConfig.ACTIVE_INSTANCE.REQUIRE_NEIGHBOR_SOURCE = originalRequire;
         }
 
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testAdventureModeBlockedOnRightClickTweaks(GameTestHelper helper) {
+        Player adventurePlayer = helper.makeMockPlayer(GameType.ADVENTURE);
+        GameType.ADVENTURE.updatePlayerAbilities(adventurePlayer.getAbilities());
+
+        // 1. Bone meal trên dirt phải bị chặn (PASS)
+        BlockPos dirtPos = new BlockPos(1, 2, 1);
+        helper.setBlock(dirtPos, Blocks.DIRT);
+        adventurePlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BONE_MEAL));
+        BlockPos absDirt = helper.absolutePos(dirtPos);
+        InteractionResult boneMealRes = net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                helper.getLevel(), adventurePlayer, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(absDirt), Direction.UP, absDirt, false)
+        );
+        helper.assertTrue(boneMealRes == InteractionResult.PASS, "Adventure player must not convert dirt with bone meal.");
+        helper.assertBlockPresent(Blocks.DIRT, dirtPos);
+
+        // 2. Water bottle trên bột bê tông phải bị chặn (PASS)
+        Block whitePowder = Blocks.CONCRETE_POWDER.pick(net.minecraft.world.item.DyeColor.WHITE);
+        BlockPos powderPos = new BlockPos(2, 2, 1);
+        helper.setBlock(powderPos, whitePowder);
+        adventurePlayer.setItemInHand(InteractionHand.MAIN_HAND,
+                net.minecraft.world.item.alchemy.PotionContents.createItemStack(Items.POTION, net.minecraft.world.item.alchemy.Potions.WATER));
+        BlockPos absPowder = helper.absolutePos(powderPos);
+        InteractionResult waterRes = net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler.handleWaterBottle(
+                helper.getLevel(), adventurePlayer, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(absPowder), Direction.UP, absPowder, false)
+        );
+        helper.assertTrue(waterRes == InteractionResult.PASS, "Adventure player must not harden concrete powder.");
+        helper.assertBlockPresent(whitePowder, powderPos);
+
+        // 3. Cúp trên farmland phải bị chặn (PASS)
+        BlockPos farmPos = new BlockPos(3, 2, 1);
+        helper.setBlock(farmPos, Blocks.FARMLAND);
+        adventurePlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
+        BlockPos absFarm = helper.absolutePos(farmPos);
+        InteractionResult pickRes = net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                helper.getLevel(), adventurePlayer, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(absFarm), Direction.UP, absFarm, false)
+        );
+        helper.assertTrue(pickRes == InteractionResult.PASS, "Adventure player must not revert farmland with a pickaxe.");
+        helper.assertBlockPresent(Blocks.FARMLAND, farmPos);
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testDisabledTweaksRespectConfigFlags(GameTestHelper helper) {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        boolean origBoneMeal = cfg.ENABLE_BONE_MEAL_TWEAK;
+        boolean origHydro = cfg.ENABLE_HYDRO_HARDENING;
+        boolean origRevert = cfg.ENABLE_PICKAXE_DIRT_REVERSION;
+        boolean origPhantom = cfg.ENABLE_END_PHANTOM;
+
+        try {
+            cfg.ENABLE_BONE_MEAL_TWEAK = false;
+            cfg.ENABLE_HYDRO_HARDENING = false;
+            cfg.ENABLE_PICKAXE_DIRT_REVERSION = false;
+            cfg.ENABLE_END_PHANTOM = false;
+
+            Player survivalPlayer = helper.makeMockPlayer(GameType.SURVIVAL);
+
+            BlockPos dirtPos = new BlockPos(1, 2, 1);
+            helper.setBlock(dirtPos, Blocks.DIRT);
+            survivalPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BONE_MEAL));
+            BlockPos absDirt = helper.absolutePos(dirtPos);
+            helper.assertTrue(
+                    net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                            helper.getLevel(), survivalPlayer, InteractionHand.MAIN_HAND,
+                            new BlockHitResult(Vec3.atCenterOf(absDirt), Direction.UP, absDirt, false)
+                    ) == InteractionResult.PASS,
+                    "BoneMealHandler must PASS when ENABLE_BONE_MEAL_TWEAK is false."
+            );
+            helper.assertBlockPresent(Blocks.DIRT, dirtPos);
+
+            Block whitePowder = Blocks.CONCRETE_POWDER.pick(net.minecraft.world.item.DyeColor.WHITE);
+            BlockPos powderPos = new BlockPos(2, 2, 1);
+            helper.setBlock(powderPos, whitePowder);
+            survivalPlayer.setItemInHand(InteractionHand.MAIN_HAND,
+                    net.minecraft.world.item.alchemy.PotionContents.createItemStack(Items.POTION, net.minecraft.world.item.alchemy.Potions.WATER));
+            BlockPos absPowder = helper.absolutePos(powderPos);
+            helper.assertTrue(
+                    net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler.handleWaterBottle(
+                            helper.getLevel(), survivalPlayer, InteractionHand.MAIN_HAND,
+                            new BlockHitResult(Vec3.atCenterOf(absPowder), Direction.UP, absPowder, false)
+                    ) == InteractionResult.PASS,
+                    "ConcreteHardeningHandler must PASS when ENABLE_HYDRO_HARDENING is false."
+            );
+            helper.assertBlockPresent(whitePowder, powderPos);
+
+            BlockPos farmPos = new BlockPos(3, 2, 1);
+            helper.setBlock(farmPos, Blocks.FARMLAND);
+            survivalPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
+            BlockPos absFarm = helper.absolutePos(farmPos);
+            helper.assertTrue(
+                    net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                            helper.getLevel(), survivalPlayer, InteractionHand.MAIN_HAND,
+                            new BlockHitResult(Vec3.atCenterOf(absFarm), Direction.UP, absFarm, false)
+                    ) == InteractionResult.PASS,
+                    "DirtReversionHandler must PASS when ENABLE_PICKAXE_DIRT_REVERSION is false."
+            );
+            helper.assertBlockPresent(Blocks.FARMLAND, farmPos);
+
+            com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "DisabledPhantomTester");
+            ServerPlayer sp = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), profile, net.minecraft.server.level.ClientInformation.createDefault());
+            sp.getStats().setValue(sp, Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 80000);
+            net.enderirt.smalllogictweaks.handler.EndPhantomHandler.resetInsomniaIfOutsideEnd(sp);
+            helper.assertTrue(
+                    sp.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)) == 80000,
+                    "TIME_SINCE_REST must not be reset when ENABLE_END_PHANTOM is false."
+            );
+        } finally {
+            cfg.ENABLE_BONE_MEAL_TWEAK = origBoneMeal;
+            cfg.ENABLE_HYDRO_HARDENING = origHydro;
+            cfg.ENABLE_PICKAXE_DIRT_REVERSION = origRevert;
+            cfg.ENABLE_END_PHANTOM = origPhantom;
+        }
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testEndPhantomOverworldLeftoverStatReset(GameTestHelper helper) {
+        boolean orig = SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM;
+        try {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM = true;
+            com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "OverworldPhantomTester");
+            ServerPlayer sp = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), profile, net.minecraft.server.level.ClientInformation.createDefault());
+            sp.getStats().setValue(sp, Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 80000);
+            net.enderirt.smalllogictweaks.handler.EndPhantomHandler.resetInsomniaIfOutsideEnd(sp);
+            helper.assertTrue(
+                    sp.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)) == 0,
+                    "Leftover TIME_SINCE_REST outside The End must be reset to 0 when ENABLE_END_PHANTOM is true."
+            );
+        } finally {
+            SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM = orig;
+        }
+        helper.succeed();
+    }
+
+    private static ServerPlayer createConnectedServerPlayer(ServerLevel level, String name) {
+        var profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), name);
+        ServerPlayer sp = new ServerPlayer(level.getServer(), level, profile, net.minecraft.server.level.ClientInformation.createDefault());
+        var conn = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        sp.connection = new net.minecraft.server.network.ServerGamePacketListenerImpl(
+                level.getServer(), conn, sp, net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false)
+        );
+        return sp;
+    }
+
+    @GameTest(maxTicks = 20)
+    public void testTimberAdvancedLevelsRadiusPersistentLeavesAndRealServerPlayer(GameTestHelper helper) {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        int origRadius = cfg.MAX_LOG_HORIZONTAL_RADIUS;
+        int origLeafDist = cfg.MAX_LEAF_DISTANCE;
+        boolean origDecay = cfg.ENABLE_AUTO_LEAVES_DECAY;
+        int origDecayThresh = cfg.DECAY_THRESHOLD;
+        ServerLevel level = helper.getLevel();
+
+        try {
+            cfg.MAX_LOG_HORIZONTAL_RADIUS = 1;
+            cfg.MAX_LEAF_DISTANCE = 4;
+            cfg.ENABLE_AUTO_LEAVES_DECAY = true;
+            cfg.DECAY_THRESHOLD = 4;
+
+            // 1. Timber II (0.9f), Timber III (0.8f), cache hit, và gọi trực tiếp BlockState.getDestroyProgress (TimberMiningSpeedMixin)
+            BlockPos tree1 = new BlockPos(1, 2, 1);
+            buildValidTree(helper, tree1); // 3 logs + 4 natural leaves
+            BlockPos absTree1 = helper.absolutePos(tree1);
+
+            Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+            equipTimberAxe(helper, player, 2);
+            float factorLv2 = SmallLogicTweaksEvents.getTimberSpeedFactor(player, absTree1);
+            float cachedLv2 = SmallLogicTweaksEvents.getTimberSpeedFactor(player, absTree1);
+            helper.assertTrue(Math.abs(factorLv2 - 2.7f) < 0.01f && cachedLv2 == factorLv2,
+                    "Timber II trên 3 gỗ phải trả hệ số 2.7f và hit cache ổn định.");
+
+            equipTimberAxe(helper, player, 3);
+            float factorLv3 = SmallLogicTweaksEvents.getTimberSpeedFactor(player, absTree1);
+            helper.assertTrue(Math.abs(factorLv3 - 2.4f) < 0.01f,
+                    "Timber III trên 3 gỗ phải trả hệ số 2.4f, nhận: " + factorLv3);
+
+            // Mixin TimberMiningSpeedMixin trên gỗ vs đá vs Shift vs rìu thường
+            BlockState logState = level.getBlockState(absTree1);
+            float timberProgress = logState.getDestroyProgress(player, level, absTree1);
+            player.setShiftKeyDown(true);
+            float shiftProgress = logState.getDestroyProgress(player, level, absTree1);
+            player.setShiftKeyDown(false);
+            helper.assertTrue(timberProgress > 0.0f && shiftProgress > timberProgress,
+                    "TimberMiningSpeedMixin phải giảm tốc độ đào khi không Shift so với khi giữ Shift.");
+
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_AXE));
+            helper.assertTrue(SmallLogicTweaksEvents.getTimberSpeedFactor(player, absTree1) == 1.0f,
+                    "Rìu không có phù phép Timber phải trả về 1.0f.");
+
+            BlockPos stonePos = helper.absolutePos(new BlockPos(0, 2, 0));
+            helper.setBlock(new BlockPos(0, 2, 0), Blocks.STONE);
+            equipTimberAxe(helper, player, 1);
+            helper.assertTrue(SmallLogicTweaksEvents.getTimberSpeedFactor(player, stonePos) == 1.0f,
+                    "Khối không phải gỗ phải trả về hệ số 1.0f.");
+            level.getBlockState(stonePos).getDestroyProgress(player, level, stonePos);
+
+            // 2. Lá PERSISTENT = true (đặt tay) không kích hoạt Timber
+            BlockPos fakeTree = new BlockPos(4, 2, 1);
+            for (int y = 0; y < 3; y++) helper.setBlock(fakeTree.above(y), Blocks.OAK_LOG);
+            BlockState persistentLeaf = Blocks.OAK_LEAVES.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true);
+            helper.setBlock(fakeTree.above(3), persistentLeaf);
+            helper.setBlock(fakeTree.above(2).east(), persistentLeaf);
+            helper.setBlock(fakeTree.above(2).west(), persistentLeaf);
+            helper.setBlock(fakeTree.above(2).north(), persistentLeaf);
+            BlockPos absFake = helper.absolutePos(fakeTree);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.TimberHandler.handleTimberChop(
+                    level, player, absFake, level.getBlockState(absFake)),
+                    "Cây chỉ có lá PERSISTENT=true không được kích hoạt Timber.");
+
+            // 3. Bán kính ngang MAX_LOG_HORIZONTAL_RADIUS=1 và lá cạnh thân gỗ lân cận được giữ lại (DISTANCE=1)
+            BlockPos outOfRadiusLog = new BlockPos(3, 2, 1); // cách tree1 X=+2 (> MAX_LOG_HORIZONTAL_RADIUS=1)
+            helper.setBlock(new BlockPos(2, 2, 1), Blocks.OAK_LOG); // cầu nối X=+1
+            helper.setBlock(outOfRadiusLog, Blocks.OAK_LOG);
+            // Lá sát outOfRadiusLog vẫn dính với cây mới (tree1 nối tới X+1, outOfRadiusLog là X+2 còn nguyên)
+            helper.setBlock(new BlockPos(2, 3, 1), Blocks.OAK_LEAVES); // gần tree1, sẽ chịu processAutoLeavesDecay
+
+            // 4. Thực thi với ServerPlayer thật (đi qua sp.gameMode.destroyBlock) và rìu gần hỏng
+            ServerPlayer sp = createConnectedServerPlayer(level, "TimberServerPlayer");
+            sp.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+            sp.setPos(absTree1.getX() + 0.5, absTree1.getY(), absTree1.getZ() + 0.5);
+            equipTimberAxe(helper, sp, 1);
+            ItemStack realAxe = sp.getMainHandItem();
+            realAxe.setDamageValue(realAxe.getMaxDamage() - 2); // Chỉ đủ phá tối đa 2 khối rồi ngừng giữa chừng
+
+            boolean chopAllowed = net.enderirt.smalllogictweaks.handler.TimberHandler.handleTimberChop(
+                    level, sp, absTree1, level.getBlockState(absTree1));
+            helper.assertFalse(chopAllowed, "Timber với ServerPlayer thật phải trả false để hủy single-break.");
+            helper.assertBlockPresent(Blocks.OAK_LOG, outOfRadiusLog);
+            helper.assertTrue(realAxe.isEmpty() || realAxe.getDamageValue() >= realAxe.getMaxDamage(),
+                    "Rìu phải dừng chặt khi hết độ bền.");
+
+            // 5. Không có phù phép Timber hoặc khi tắt ENABLE_TIMBER_TWEAK -> analyzeTimber trả shouldChop=false
+            BlockPos plainTree = new BlockPos(6, 2, 5);
+            buildValidTree(helper, plainTree);
+            BlockPos absPlain = helper.absolutePos(plainTree);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_AXE));
+            helper.assertFalse(net.enderirt.smalllogictweaks.handler.TimberHandler.analyzeTimber(
+                    level, player, absPlain, player.getMainHandItem()).shouldChop(),
+                    "Rìu không có Timber phải trả shouldChop=false.");
+            boolean origTimber = cfg.ENABLE_TIMBER_TWEAK;
+            try {
+                cfg.ENABLE_TIMBER_TWEAK = false;
+                equipTimberAxe(helper, player, 1);
+                helper.assertFalse(net.enderirt.smalllogictweaks.handler.TimberHandler.analyzeTimber(
+                        level, player, absPlain, player.getMainHandItem()).shouldChop(),
+                        "Khi tắt ENABLE_TIMBER_TWEAK phải trả shouldChop=false.");
+            } finally {
+                cfg.ENABLE_TIMBER_TWEAK = origTimber;
+            }
+        } finally {
+            cfg.MAX_LOG_HORIZONTAL_RADIUS = origRadius;
+            cfg.MAX_LEAF_DISTANCE = origLeafDist;
+            cfg.ENABLE_AUTO_LEAVES_DECAY = origDecay;
+            cfg.DECAY_THRESHOLD = origDecayThresh;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void testKitchenHeatSourcesCoverPositionsAndMergePrevention(GameTestHelper helper) {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        boolean origKitchen = cfg.ENABLE_AESTHETIC_KITCHEN;
+        boolean origDry = cfg.ENABLE_DRY_ROASTING;
+        boolean origCauldron = cfg.ENABLE_CAULDRON_BOILING;
+        var origMap = new java.util.LinkedHashMap<>(cfg.magmaCookTimes);
+        var origOverrides = new java.util.LinkedHashMap<>(cfg.aestheticCookResults);
+        ServerLevel level = helper.getLevel();
+        level.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, level.getServer());
+
+        try {
+            // 1. Kiểm tra getHeatMultiplier & isHeatSource cho MAGMA, FIRE, SOUL_FIRE, LAVA, STONE
+            helper.assertTrue(net.enderirt.smalllogictweaks.util.KitchenHelper.getHeatMultiplier(Blocks.SOUL_FIRE.defaultBlockState()) == 1.2f,
+                    "Soul Fire heat multiplier phải là 1.2f.");
+            helper.assertTrue(net.enderirt.smalllogictweaks.util.KitchenHelper.getHeatMultiplier(Blocks.LAVA.defaultBlockState()) == 1.5f,
+                    "Lava heat multiplier phải là 1.5f.");
+            helper.assertTrue(net.enderirt.smalllogictweaks.util.KitchenHelper.isHeatSource(Blocks.FIRE.defaultBlockState()),
+                    "FIRE phải được nhận diện là nguồn nhiệt.");
+            helper.assertFalse(net.enderirt.smalllogictweaks.util.KitchenHelper.isHeatSource(Blocks.STONE.defaultBlockState()),
+                    "STONE không phải nguồn nhiệt.");
+
+            // 2. Bếp phủ ở entityPos.below() (đặt slab dưới chân entity, magma ở 2 khối dưới)
+            BlockPos magmaLow = new BlockPos(1, 1, 1);
+            BlockPos slabCover = new BlockPos(1, 2, 1);
+            helper.setBlock(magmaLow, Blocks.MAGMA_BLOCK);
+            helper.setBlock(slabCover, Blocks.STONE_SLAB); // TOP/BOTTOM default -> entity đứng ở y=3 (below = y=2 cover, below(2)=y=1 magma)
+            BlockPos absAboveSlab = helper.absolutePos(new BlockPos(1, 3, 1));
+            var beefOnSlab1 = new net.minecraft.world.entity.item.ItemEntity(
+                    level, absAboveSlab.getX() + 0.5, absAboveSlab.getY() + 0.05, absAboveSlab.getZ() + 0.5,
+                    new ItemStack(Items.BEEF, 1));
+            var beefOnSlab2 = new net.minecraft.world.entity.item.ItemEntity(
+                    level, absAboveSlab.getX() + 0.5, absAboveSlab.getY() + 0.05, absAboveSlab.getZ() + 0.5,
+                    new ItemStack(Items.BEEF, 1));
+            beefOnSlab1.setDeltaMovement(0, 0, 0);
+            beefOnSlab2.setDeltaMovement(0, 0, 0);
+            beefOnSlab1.setNoPickUpDelay();
+            beefOnSlab2.setNoPickUpDelay();
+            level.addFreshEntity(beefOnSlab1);
+            level.addFreshEntity(beefOnSlab2);
+
+            helper.assertTrue(net.enderirt.smalllogictweaks.util.KitchenHelper.isOnActiveStove(beefOnSlab1),
+                    "Vật phẩm đứng trên lớp phủ ở entityPos.below() phải kích hoạt isOnActiveStove.");
+
+            // Tick nhiều lần để xác nhận ItemEntityMergeMixin ngăn gộp stack khi đang trên bếp
+            for (int t = 0; t < 10; t++) {
+                beefOnSlab1.tick();
+                beefOnSlab2.tick();
+            }
+            helper.assertTrue(beefOnSlab1.isAlive() && beefOnSlab2.isAlive(),
+                    "ItemEntityMergeMixin phải chặn 2 món đồ đang nướng gộp thành 1 stack.");
+
+            // 3. Nguồn nhiệt ngay tại entityPos (đặt item ngay trên khối magma/fire)
+            BlockPos directMagma = new BlockPos(4, 2, 1);
+            helper.setBlock(directMagma, Blocks.MAGMA_BLOCK);
+            BlockPos absDirect = helper.absolutePos(directMagma);
+            var porkInside = new net.minecraft.world.entity.item.ItemEntity(
+                    level, absDirect.getX() + 0.5, absDirect.getY() + 0.2, absDirect.getZ() + 0.5,
+                    new ItemStack(Items.PORKCHOP, 1));
+            int timerInside = net.enderirt.smalllogictweaks.handler.AestheticKitchenHandler.tickCooking(porkInside, 0);
+            helper.assertTrue(timerInside == 1, "Nguồn nhiệt tại entityPos phải tăng timer cooking lên 1.");
+
+            // 4. Tắt ENABLE_DRY_ROASTING hoặc ENABLE_AESTHETIC_KITCHEN -> giảm nhiệt timer
+            cfg.ENABLE_DRY_ROASTING = false;
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.AestheticKitchenHandler.tickCooking(porkInside, 10) == 9,
+                    "Khi tắt ENABLE_DRY_ROASTING, timer đang nấu phải giảm dần.");
+            cfg.ENABLE_AESTHETIC_KITCHEN = false;
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.AestheticKitchenHandler.tickCooking(porkInside, 5) == 4,
+                    "Khi tắt ENABLE_AESTHETIC_KITCHEN, timer phải giảm dần.");
+
+            // 5. getCookTime edge cases: item không nằm trong map, ngoài biên trong map, magmaCookTimes=null
+            cfg.magmaCookTimes.put("minecraft:diamond", 999999);
+            helper.assertTrue(cfg.getCookTime(Items.DIAMOND) == cfg.DEFAULT_COOK_TIME,
+                    "Giá trị ngoài biên trong magmaCookTimes phải rơi về DEFAULT_COOK_TIME.");
+            cfg.magmaCookTimes = null;
+            helper.assertTrue(cfg.getCookTime(Items.BEEF) == cfg.DEFAULT_COOK_TIME,
+                    "Khi magmaCookTimes null, getCookTime phải trả DEFAULT_COOK_TIME.");
+
+            // 6. getCookedResult với override sai/AIR và fallback smelting recipe vanilla
+            cfg.aestheticCookResults.put("minecraft:beef", "minecraft:air");
+            net.enderirt.smalllogictweaks.util.KitchenHelper.clearCookableCache();
+            ItemStack cookedFallback = SmallLogicTweaksConfig.getCookedResult(level, new ItemStack(Items.BEEF));
+            helper.assertTrue(cookedFallback.is(Items.COOKED_BEEF),
+                    "Override trỏ tới AIR phải fallback về công thức smelting vanilla ra COOKED_BEEF.");
+            helper.assertTrue(net.enderirt.smalllogictweaks.util.KitchenHelper.getCookedResult(level, ItemStack.EMPTY).isEmpty(),
+                    "getCookedResult với ItemStack.EMPTY phải trả EMPTY.");
+
+            // isOnActiveStove trả false khi nằm trên khối thường (không có nguồn nhiệt)
+            BlockPos plainStone = new BlockPos(6, 2, 1);
+            helper.setBlock(plainStone, Blocks.STONE);
+            BlockPos absPlainStone = helper.absolutePos(plainStone);
+            var coldBeef = new net.minecraft.world.entity.item.ItemEntity(
+                    level, absPlainStone.getX() + 0.5, absPlainStone.getY() + 1.1, absPlainStone.getZ() + 0.5,
+                    new ItemStack(Items.BEEF, 1));
+            helper.assertFalse(net.enderirt.smalllogictweaks.util.KitchenHelper.isOnActiveStove(coldBeef),
+                    "Vật phẩm không ở trên bếp nhiệt phải trả isOnActiveStove=false.");
+        } finally {
+            cfg.ENABLE_AESTHETIC_KITCHEN = origKitchen;
+            cfg.ENABLE_DRY_ROASTING = origDry;
+            cfg.ENABLE_CAULDRON_BOILING = origCauldron;
+            cfg.magmaCookTimes = origMap;
+            cfg.aestheticCookResults = origOverrides;
+            net.enderirt.smalllogictweaks.util.KitchenHelper.clearCookableCache();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testBoneMealEdgeCasesAndMyceliumSource(GameTestHelper helper) {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        boolean origAllDirt = cfg.ALLOW_ALL_DIRT_TYPES;
+        boolean origRequire = cfg.REQUIRE_NEIGHBOR_SOURCE;
+        ServerLevel level = helper.getLevel();
+
+        try {
+            Player survival = helper.makeMockPlayer(GameType.SURVIVAL);
+
+            // 1. Chặn phía trên bằng khối đặc hoặc nước -> PASS
+            BlockPos blockedDirt = new BlockPos(1, 2, 1);
+            helper.setBlock(blockedDirt, Blocks.DIRT);
+            helper.setBlock(blockedDirt.above(), Blocks.STONE);
+            survival.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BONE_MEAL, 8));
+            BlockPos absBlocked = helper.absolutePos(blockedDirt);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    level, survival, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(absBlocked), Direction.UP, absBlocked, false)) == InteractionResult.PASS,
+                    "Đất bị khối đặc che phía trên không được phép bón bột xương.");
+
+            BlockPos floodedDirt = new BlockPos(1, 2, 3);
+            helper.setBlock(floodedDirt, Blocks.DIRT);
+            helper.setBlock(floodedDirt.above(), Blocks.WATER);
+            BlockPos absFlooded = helper.absolutePos(floodedDirt);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    level, survival, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(absFlooded), Direction.UP, absFlooded, false)) == InteractionResult.PASS,
+                    "Đất có nước phía trên không được phép bón bột xương.");
+
+            // 2. ALLOW_ALL_DIRT_TYPES = true + REQUIRE_NEIGHBOR_SOURCE = false trên Coarse Dirt
+            cfg.ALLOW_ALL_DIRT_TYPES = true;
+            cfg.REQUIRE_NEIGHBOR_SOURCE = false;
+            BlockPos coarsePos = new BlockPos(3, 2, 1);
+            helper.setBlock(coarsePos, Blocks.COARSE_DIRT);
+            BlockPos absCoarse = helper.absolutePos(coarsePos);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    level, survival, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(absCoarse), Direction.UP, absCoarse, false)) == InteractionResult.SUCCESS,
+                    "COARSE_DIRT phải chuyển hóa thành công khi ALLOW_ALL_DIRT_TYPES=true.");
+            helper.assertBlockPresent(Blocks.GRASS_BLOCK, coarsePos);
+
+            // 3. REQUIRE_NEIGHBOR_SOURCE = true với lân cận MYCELIUM (đặt cao trên nền đá để không chạm cỏ sàn) -> biến thành MYCELIUM
+            cfg.REQUIRE_NEIGHBOR_SOURCE = true;
+            helper.setBlock(new BlockPos(6, 2, 3), Blocks.STONE);
+            helper.setBlock(new BlockPos(7, 2, 3), Blocks.STONE);
+            BlockPos dirtNearMycelium = new BlockPos(6, 3, 3);
+            helper.setBlock(dirtNearMycelium, Blocks.DIRT);
+            helper.setBlock(new BlockPos(7, 3, 3), Blocks.MYCELIUM);
+            BlockPos absMyc = helper.absolutePos(dirtNearMycelium);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    level, survival, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(absMyc), Direction.UP, absMyc, false)) == InteractionResult.SUCCESS,
+                    "Đất cạnh Mycelium phải biến thành Mycelium.");
+            helper.assertBlockPresent(Blocks.MYCELIUM, dirtNearMycelium);
+
+            // 4. Spectator bị chặn
+            Player spectator = helper.makeMockPlayer(GameType.SPECTATOR);
+            spectator.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BONE_MEAL));
+            helper.setBlock(dirtNearMycelium, Blocks.DIRT);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.BoneMealHandler.handleBoneMeal(
+                    level, spectator, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(absMyc), Direction.UP, absMyc, false)) == InteractionResult.PASS,
+                    "Spectator không được phép dùng BoneMealHandler.");
+        } finally {
+            cfg.ALLOW_ALL_DIRT_TYPES = origAllDirt;
+            cfg.REQUIRE_NEIGHBOR_SOURCE = origRequire;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 40)
+    public void testConcreteSplashNonWaterAndInventoryFullDrop(GameTestHelper helper) {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        boolean origSplash = cfg.ENABLE_SPLASH_HARDENING;
+        ServerLevel level = helper.getLevel();
+
+        try {
+            Block yellowPowder = Blocks.CONCRETE_POWDER.pick(net.minecraft.world.item.DyeColor.YELLOW);
+            BlockPos powderPos = new BlockPos(1, 2, 1);
+            helper.setBlock(powderPos, yellowPowder);
+            BlockPos absPowder = helper.absolutePos(powderPos);
+            BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absPowder), Direction.UP, absPowder, false);
+
+            // 1. Awkward potion (không phải WATER) và Spectator đều phải trả PASS
+            Player survival = helper.makeMockPlayer(GameType.SURVIVAL);
+            survival.setItemInHand(InteractionHand.MAIN_HAND,
+                    PotionContents.createItemStack(Items.POTION, Potions.AWKWARD));
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler.handleWaterBottle(
+                    level, survival, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS,
+                    "Chai Awkward Potion không được làm cứng bột bê tông.");
+
+            Player spectator = helper.makeMockPlayer(GameType.SPECTATOR);
+            spectator.setItemInHand(InteractionHand.MAIN_HAND,
+                    PotionContents.createItemStack(Items.POTION, Potions.WATER));
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler.handleWaterBottle(
+                    level, spectator, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS,
+                    "Spectator không được phép hóa cứng bột bê tông.");
+
+            // 2. Thùng đồ đầy + stack gồm 2 bình nước -> rơi chai thủy tinh rỗng ra thế giới
+            ServerPlayer sp = createConnectedServerPlayer(level, "BottleDropTester");
+            sp.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+            sp.setPos(absPowder.getX() + 0.5, absPowder.getY() + 1.0, absPowder.getZ() + 0.5);
+            for (int slot = 1; slot < sp.getInventory().getContainerSize(); slot++) {
+                sp.getInventory().setItem(slot, new ItemStack(Items.STONE, 64));
+            }
+            ItemStack multiWater = PotionContents.createItemStack(Items.POTION, Potions.WATER);
+            multiWater.setCount(2);
+            sp.setItemInHand(InteractionHand.MAIN_HAND, multiWater);
+            helper.assertTrue(net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler.handleWaterBottle(
+                    level, sp, InteractionHand.MAIN_HAND, hit) == InteractionResult.SUCCESS,
+                    "Hóa cứng khi đầy túi đồ phải trả SUCCESS.");
+            helper.assertTrue(sp.getMainHandItem().getCount() == 1,
+                    "Stack 2 bình nước phải giảm xuống còn 1 bình.");
+            var droppedBottles = level.getEntitiesOfClass(
+                    net.minecraft.world.entity.item.ItemEntity.class,
+                    new net.minecraft.world.phys.AABB(absPowder).inflate(3.0),
+                    e -> e.getItem().is(Items.GLASS_BOTTLE));
+            helper.assertFalse(droppedBottles.isEmpty(),
+                    "Chai thủy tinh rỗng phải được rơi ra đất khi túi đồ đầy.");
+
+            // 3. ThrownPotionMixin: Splash Poison Potion KHÔNG được hóa cứng bột bê tông
+            BlockPos splashTarget = new BlockPos(4, 2, 1);
+            helper.setBlock(splashTarget, yellowPowder);
+            BlockPos absSplash = helper.absolutePos(splashTarget);
+            AbstractThrownPotion poisonPotion = new AbstractThrownPotion(net.minecraft.world.entity.EntityTypes.SPLASH_POTION, level) {
+                @Override
+                protected void onHitAsPotion(ServerLevel sLevel, ItemStack item, HitResult result) {}
+                @Override
+                protected Item getDefaultItem() { return Items.SPLASH_POTION; }
+            };
+            poisonPotion.setItem(PotionContents.createItemStack(Items.SPLASH_POTION, Potions.POISON));
+            poisonPotion.setPos(absSplash.getX() + 0.5, absSplash.getY() + 1.0, absSplash.getZ() + 0.5);
+            poisonPotion.setDeltaMovement(0, -0.5, 0);
+            level.addFreshEntity(poisonPotion);
+            for (int t = 0; t < 20 && poisonPotion.isAlive(); t++) {
+                poisonPotion.tick();
+            }
+
+            // 4. Khi tắt ENABLE_SPLASH_HARDENING, Splash Water Potion cũng không được hóa cứng
+            BlockPos disabledTarget = new BlockPos(6, 2, 1);
+            helper.setBlock(disabledTarget, yellowPowder);
+            BlockPos absDisabled = helper.absolutePos(disabledTarget);
+            cfg.ENABLE_SPLASH_HARDENING = false;
+            AbstractThrownPotion disabledWaterPotion = new AbstractThrownPotion(net.minecraft.world.entity.EntityTypes.SPLASH_POTION, level) {
+                @Override
+                protected void onHitAsPotion(ServerLevel sLevel, ItemStack item, HitResult result) {}
+                @Override
+                protected Item getDefaultItem() { return Items.SPLASH_POTION; }
+            };
+            disabledWaterPotion.setItem(PotionContents.createItemStack(Items.SPLASH_POTION, Potions.WATER));
+            disabledWaterPotion.setPos(absDisabled.getX() + 0.5, absDisabled.getY() + 1.0, absDisabled.getZ() + 0.5);
+            disabledWaterPotion.setDeltaMovement(0, -0.5, 0);
+            level.addFreshEntity(disabledWaterPotion);
+            for (int t = 0; t < 20 && disabledWaterPotion.isAlive(); t++) {
+                disabledWaterPotion.tick();
+            }
+
+            helper.assertBlockPresent(yellowPowder, splashTarget);
+            helper.assertBlockPresent(yellowPowder, disabledTarget);
+        } finally {
+            cfg.ENABLE_SPLASH_HARDENING = origSplash;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testDirtReversionGuardsAndBystanderEntityLift(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos farmPos = new BlockPos(2, 2, 2);
+        helper.setBlock(farmPos, Blocks.FARMLAND);
+        BlockPos absFarm = helper.absolutePos(farmPos);
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(absFarm), Direction.UP, absFarm, false);
+
+        // 1. Công cụ không phải cúp, khối không hợp lệ, Spectator đều trả PASS
+        Player spectator = helper.makeMockPlayer(GameType.SPECTATOR);
+        spectator.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
+        helper.assertTrue(net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                level, spectator, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS,
+                "Spectator phải trả PASS.");
+
+        Player survival = helper.makeMockPlayer(GameType.SURVIVAL);
+        survival.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_SHOVEL));
+        helper.assertTrue(net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                level, survival, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS,
+                "Xẻng không phải cúp phải trả PASS.");
+
+        BlockPos stonePos = new BlockPos(4, 2, 2);
+        helper.setBlock(stonePos, Blocks.STONE);
+        BlockPos absStone = helper.absolutePos(stonePos);
+        survival.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.IRON_PICKAXE));
+        helper.assertTrue(net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                level, survival, InteractionHand.MAIN_HAND,
+                new BlockHitResult(Vec3.atCenterOf(absStone), Direction.UP, absStone, false)) == InteractionResult.PASS,
+                "Đá không thuộc #pickaxe_reversion phải trả PASS.");
+
+        // 2. Thực thể đứng lún trên Farmland (y = absFarm.getY() + 0.90) phải được nâng lên y = absFarm.getY() + 1.0
+        var sheep = net.minecraft.world.entity.EntityTypes.SHEEP.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
+        helper.assertTrue(sheep != null, "Không tạo được Sheep test.");
+        sheep.setPos(absFarm.getX() + 0.5, absFarm.getY() + 0.90, absFarm.getZ() + 0.5);
+        sheep.setDeltaMovement(0, -0.2, 0);
+        level.addFreshEntity(sheep);
+
+        helper.assertTrue(net.enderirt.smalllogictweaks.handler.DirtReversionHandler.handlePickaxeReversion(
+                level, survival, InteractionHand.MAIN_HAND, hit) == InteractionResult.SUCCESS,
+                "Cúp chuyển Farmland thành Dirt phải trả SUCCESS.");
+        helper.assertBlockPresent(Blocks.DIRT, farmPos);
+        helper.assertTrue(sheep.getY() >= absFarm.getY() + 1.0 - 0.001,
+                "Thực thể lân cận trên ô đất phải được bù tọa độ Y lên >= targetY.");
+
+        helper.succeed();
+    }
+
+    @GameTest(maxTicks = 10)
+    public void testEndPhantomMixinsAndTickGuards(GameTestHelper helper) throws Exception {
+        var cfg = SmallLogicTweaksConfig.ACTIVE_INSTANCE;
+        boolean origPhantom = cfg.ENABLE_END_PHANTOM;
+        int origMin = cfg.PHANTOM_MIN_COUNT;
+        int origMax = cfg.PHANTOM_MAX_COUNT;
+        ServerLevel overworld = helper.getLevel();
+        ServerLevel endLevel = overworld.getServer().getLevel(Level.END);
+        boolean origSpawnRule = overworld.getGameRules().get(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS);
+
+        try {
+            cfg.ENABLE_END_PHANTOM = true;
+
+            // 1. ServerPlayerMixin: chặn awardStat TIME_SINCE_REST ở Overworld, nhưng cho phép ở The End
+            com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "MixinPhantomTester");
+            ServerPlayer overworldPlayer = new ServerPlayer(overworld.getServer(), overworld, profile, net.minecraft.server.level.ClientInformation.createDefault());
+            overworldPlayer.awardStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 500);
+            helper.assertTrue(overworldPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)) == 0,
+                    "ServerPlayerMixin phải chặn TIME_SINCE_REST tăng ở Overworld khi bật ENABLE_END_PHANTOM.");
+
+            if (endLevel != null) {
+                ServerPlayer endPlayer = new ServerPlayer(overworld.getServer(), endLevel,
+                        new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "EndStatTester"),
+                        net.minecraft.server.level.ClientInformation.createDefault());
+                endPlayer.awardStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 500);
+                helper.assertTrue(endPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)) == 500,
+                        "ServerPlayerMixin phải cho phép TIME_SINCE_REST tăng trong The End.");
+
+                // handleEndTick khi SPAWN_PHANTOMS=false và khi player Creative
+                endLevel.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS, false, overworld.getServer());
+                net.enderirt.smalllogictweaks.handler.EndPhantomHandler.handleEndTick(endLevel);
+                endLevel.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS, true, overworld.getServer());
+                net.enderirt.smalllogictweaks.handler.EndPhantomHandler.handleEndTick(endLevel);
+
+                // Overload 2 tham số executePhantomSpawnLogic(level, player)
+                net.enderirt.smalllogictweaks.handler.EndPhantomHandler.executePhantomSpawnLogic(endLevel, endPlayer);
+            }
+
+            // 2. PhantomSpawnerMixin: khi ENABLE_END_PHANTOM=true ở Overworld, tick bị cancel ở HEAD (nextTick vẫn = 0)
+            overworld.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS, true, overworld.getServer());
+            var spawner = new net.minecraft.world.level.levelgen.PhantomSpawner();
+            var nextTickField = net.minecraft.world.level.levelgen.PhantomSpawner.class.getDeclaredField("nextTick");
+            nextTickField.setAccessible(true);
+            spawner.tick(overworld, true);
+            helper.assertTrue(nextTickField.getInt(spawner) == 0,
+                    "PhantomSpawnerMixin phải hủy tick ở Overworld khi ENABLE_END_PHANTOM=true (nextTick vẫn = 0).");
+
+            // Khi tắt ENABLE_END_PHANTOM, PhantomSpawner.tick chạy bình thường và đặt nextTick > 0
+            cfg.ENABLE_END_PHANTOM = false;
+            spawner.tick(overworld, true);
+            helper.assertTrue(nextTickField.getInt(spawner) > 0,
+                    "Khi tắt ENABLE_END_PHANTOM, PhantomSpawner.tick phải chạy bình thường và cập nhật nextTick > 0.");
+
+            // ServerPlayerMixin khi tắt ENABLE_END_PHANTOM cũng cho phép tăng stat bình thường
+            overworldPlayer.awardStat(Stats.CUSTOM.get(Stats.TIME_SINCE_REST), 250);
+            helper.assertTrue(overworldPlayer.getStats().getValue(Stats.CUSTOM.get(Stats.TIME_SINCE_REST)) == 250,
+                    "Khi tắt ENABLE_END_PHANTOM, TIME_SINCE_REST phải tăng bình thường ở Overworld.");
+        } finally {
+            cfg.ENABLE_END_PHANTOM = origPhantom;
+            cfg.PHANTOM_MIN_COUNT = origMin;
+            cfg.PHANTOM_MAX_COUNT = origMax;
+            overworld.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS, origSpawnRule, overworld.getServer());
+            if (endLevel != null) {
+                endLevel.getGameRules().set(net.minecraft.world.level.gamerules.GameRules.SPAWN_PHANTOMS, origSpawnRule, overworld.getServer());
+            }
+        }
         helper.succeed();
     }
 }
