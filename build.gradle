@@ -140,13 +140,15 @@ def releaseVersionName = "Small Logic Tweaks ${project.version}"
 
 // [VI] Mỗi loader là một version riêng trên Modrinth. Bản NeoForge đi theo dạng beta khi NeoForge còn beta.
 // [EN] Each loader is its own Modrinth version. The NeoForge build ships as beta while NeoForge itself is beta.
+def fabricLoaders = releaseLoaders.findAll { it in ["fabric", "quilt"] } ?: ["fabric"]
+def fabricDisplaySuffix = (fabricLoaders.contains("fabric") && fabricLoaders.contains("quilt")) ? "Fabric/Quilt" : "Fabric"
 def releaseArtifacts = [:]
 releaseArtifacts.fabric = [
 	project        : ":fabric",
-	versionNumber  : project.version.toString(),
-	versionName    : releaseVersionName.toString(),
+	versionNumber  : "${project.version}-fabric".toString(),
+	versionName    : "${releaseVersionName} (${fabricDisplaySuffix})".toString(),
 	versionType    : modrinthVersionType,
-	modrinthLoaders: releaseLoaders.findAll { it in ["fabric", "quilt"] } ?: ["fabric"]
+	modrinthLoaders: fabricLoaders
 ]
 if (findProject(":neoforge") != null) {
 	def neoforgeIsBeta = project.neoforge_version.toString().contains("beta")
