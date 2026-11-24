@@ -1,11 +1,27 @@
 # 🛠️ Unreleased (Đang phát triển)
 
+---
+# 🐛 Bugfixes & Stability Update (Version 1.6.1)
+
 ### 🔧 Fixed
-* **[Only for 26.3] Item Tag Path:** Migrated #small_logic_tweaks:magma_cookable tag to tags/item/ and standardized raw meat item IDs to minecraft:beef, minecraft:porkchop, minecraft:chicken, minecraft:mutton, minecraft:rabbit for full Minecraft 26.3 parity.
+* **[Only for 26.3] Item Tag Path:** Migrated `#small_logic_tweaks:magma_cookable` tag to `tags/item/` and standardized raw meat item IDs to `minecraft:beef`, `minecraft:porkchop`, `minecraft:chicken`, `minecraft:mutton`, and `minecraft:rabbit` for full Minecraft 26.3 parity.
+* **Timber Region Protection Support:** Routed Timber multi-block tree felling through `ServerPlayerGameMode#destroyBlock` with a re-entrancy guard so region-protection mods and plugins can intercept or cancel chopped blocks.
+* **Adventure Mode Respect:** Added build-permission checks (`player.mayBuild()`) to Bone Meal propagation, Concrete Hydro-Hardening, and Dirt Reversion right-click interactions so players in Adventure mode cannot bypass build restrictions.
+* **Overworld Phantom Prevention:** Added a Phantom spawner guard to prevent Phantom spawns outside the End even when leftover `TIME_SINCE_REST` stats exist from prior vanilla saves, and reset leftover Overworld insomnia stats on player join.
+* **Jungle Sustainability Vanilla Fallback:** Replaced the static vanilla `jungle_leaves` loot override with a conditional runtime loot replacement hook (`JungleLootHelper`), preserving vanilla and third-party mod loot when `ENABLE_JUNGLE_SUSTAINABILITY` is disabled.
+* **Poisonous Potato Composter Fill Rate:** Fixed `DataComponents.COMPOSTABLE` for Poisonous Potatoes using `ContextIntProviders.COMPOSTABLE_MEDIUM` instead of a constant `65` layers, matching vanilla Potato's 65% chance per item instead of instantly filling the Composter.
+* **Unmodded Server Client Prediction:** Clients joining a vanilla or unmodded server now keep client-side tweak prediction disabled until a mod config sync packet is received, avoiding false client-side action predictions.
+* **Kitchen Registry Cleanup:** Cleared dimension-scoped cooking reservations in `KitchenRegistry` on server stop to prevent stale reservation state across world reloads.
+
+### 🛡️ Security
+* **Config Validation Hardening:** Added null-safety and `[1, 72000]` tick range clamping for `magmaCookTimes` entries in `SmallLogicTweaksConfig` during loading and validation.
 
 ### ⚙️ Changed
-* **Automated Testing:** Added standalone two-phase pipeline scripts/test_clean_removal.ps1 to automatically verify clean mod removal and world integrity on both Fabric Loader and pure Vanilla servers.
-* **Documentation & Standards:** Renamed CLAUDE.md to KNOWLEDGE.md, documented upcoming concepts in README.md, and established project-wide English-first documentation standards in .agents/AGENTS.md.
+* **NeoForge & Quilt Platform Support:** Upgraded NeoForge target from `26.3.0.43-beta` to stable `26.3.0.103`, enabled Quilt (`0.30.2+`) and NeoForge `26.3` release distribution, and standardized per-loader release version suffixes (`-fabric` / `-neoforge`).
+* **Automated Testing:** Added standalone two-phase pipeline `scripts/test_clean_removal.ps1` to automatically verify clean mod removal and world integrity on both Fabric Loader and pure Vanilla servers, alongside expanded GameTest and unit test coverage for disabled tweaks, Adventure mode, Poisonous Potato composting/brewing behavior, and client config sync state.
+* **Documentation & Standards:** Renamed `CLAUDE.md` to `KNOWLEDGE.md`, updated `README.md` mechanics, compatibility, and roadmap notes, and established project-wide English-first documentation standards in `.agents/AGENTS.md`.
+
+**Status:** Release. Feedback is welcome!
 
 ---
 # 🔨 Memory Preserved & 🐢 Weightless Creatures Update (Version 1.6.0)
