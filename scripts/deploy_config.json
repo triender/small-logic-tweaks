@@ -2,7 +2,7 @@
     "platforms": {
         "modrinth":   { "enabled": true,  "project": "small-logic-tweak" },
         "curseforge": { "enabled": false, "project_id": 0 },
-        "github":     { "enabled": false, "repo": "triender/small-logic-tweaks" },
+        "github":     { "enabled": true,  "repo": "triender/small-logic-tweaks" },
         "git_push":   { "enabled": true,  "remote": "origin" }
     },
     "quilt_test_loader": "0.30.2",
