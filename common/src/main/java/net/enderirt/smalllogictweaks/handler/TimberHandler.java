@@ -31,6 +31,9 @@ public final class TimberHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("small_logic_tweaks");
 
+    // Cờ chống đệ quy khi Timber phá các khối gỗ con thông qua ServerPlayerGameMode.destroyBlock
+    private static final ThreadLocal<Boolean> IS_TIMBER_CHOPPING = ThreadLocal.withInitial(() -> false);
+
     /**
      * VI: Cấu trúc kết quả phân tích cấu trúc cây gỗ Timber.
      * EN: Timber tree structure analysis result record.
@@ -77,6 +80,7 @@ public final class TimberHandler {
      *               EN: False if Timber handled the action (cancels default single break), True to continue normally
      */
     public static boolean handleTimberChop(Level world, Player player, BlockPos pos, BlockState state) {
+        if (Boolean.TRUE.equals(IS_TIMBER_CHOPPING.get())) return true;
         if (!(world instanceof ServerLevel serverLevel) || player.isSpectator()) return true;
 
         ItemStack axe = player.getMainHandItem();
@@ -277,18 +281,26 @@ public final class TimberHandler {
         debugLog("[Timber] Execution: Breaking {} logs and checking {} leaves...", result.logs().size(), result.leaves().size());
         int brokenLogsCount = 0;
 
-        // 1. Phá thân gỗ
-        for (BlockPos logPos : result.logs()) {
-            if (axe.isEmpty() || (axe.isDamageableItem() && axe.getDamageValue() >= axe.getMaxDamage())) {
-                break;
+        // 1. Phá thân gỗ (đi qua ServerPlayerGameMode.destroyBlock để tôn trọng bảo vệ vùng và sự kiện phá khối)
+        ServerPlayer sp = player instanceof ServerPlayer ? (ServerPlayer) player : null;
+        IS_TIMBER_CHOPPING.set(true);
+        try {
+            for (BlockPos logPos : result.logs()) {
+                if (axe.isEmpty() || (axe.isDamageableItem() && axe.getDamageValue() >= axe.getMaxDamage())) {
+                    break;
+                }
+                if (sp != null) {
+                    if (sp.gameMode.destroyBlock(logPos)) {
+                        brokenLogsCount++;
+                    }
+                } else if (level.destroyBlock(logPos, true, player)) {
+                    brokenLogsCount++;
+                    axe.hurtAndBreak(1, level, null, (item) ->
+                            player.onEquippedItemBroken(item, EquipmentSlot.MAINHAND));
+                }
             }
-            if (level.destroyBlock(logPos, true, player)) {
-                brokenLogsCount++;
-
-                ServerPlayer sp = player instanceof ServerPlayer ? (ServerPlayer) player : null;
-                axe.hurtAndBreak(1, level, sp, (item) ->
-                        player.onEquippedItemBroken(item, EquipmentSlot.MAINHAND));
-            }
+        } finally {
+            IS_TIMBER_CHOPPING.remove();
         }
 
         // 2. Ép game logic xử lý lá (Tối ưu hóa In-Memory)
