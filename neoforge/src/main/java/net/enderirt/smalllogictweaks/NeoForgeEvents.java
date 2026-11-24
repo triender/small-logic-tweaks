@@ -5,14 +5,13 @@ import net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler;
 import net.enderirt.smalllogictweaks.handler.DirtReversionHandler;
 import net.enderirt.smalllogictweaks.handler.EndPhantomHandler;
 import net.enderirt.smalllogictweaks.handler.TimberHandler;
+import net.enderirt.smalllogictweaks.util.CompostHelper;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.Compostable;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.ModifyDefaultComponentsEvent;
@@ -94,7 +93,7 @@ public final class NeoForgeEvents {
     private static void onModifyDefaultComponents(ModifyDefaultComponentsEvent event) {
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
             event.modify(Items.POISONOUS_POTATO, (builder, registries, item) ->
-                    builder.set(DataComponents.COMPOSTABLE, new Compostable(new ResolvableInt.Constant(65))));
+                    builder.set(DataComponents.COMPOSTABLE, CompostHelper.POISONOUS_POTATO_COMPOSTABLE));
             if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
                 SmallLogicTweaksCommon.LOGGER.info("[Potato Tweak] Registered Poisonous Potato to Composter via ModifyDefaultComponentsEvent.");
             }

@@ -5,6 +5,7 @@ import net.enderirt.smalllogictweaks.handler.ConcreteHardeningHandler;
 import net.enderirt.smalllogictweaks.handler.DirtReversionHandler;
 import net.enderirt.smalllogictweaks.handler.EndPhantomHandler;
 import net.enderirt.smalllogictweaks.handler.TimberHandler;
+import net.enderirt.smalllogictweaks.util.CompostHelper;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -17,10 +18,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.Compostable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +78,7 @@ public final class SmallLogicTweaksEvents {
         if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_POISONOUS_POTATO_COMPOST) {
             DefaultItemComponentEvents.MODIFY.register(context -> {
                 context.modify(Items.POISONOUS_POTATO, builder -> {
-                    builder.set(DataComponents.COMPOSTABLE, new Compostable(new ResolvableInt.Constant(65)));
+                    builder.set(DataComponents.COMPOSTABLE, CompostHelper.POISONOUS_POTATO_COMPOSTABLE);
                 });
             });
             if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
