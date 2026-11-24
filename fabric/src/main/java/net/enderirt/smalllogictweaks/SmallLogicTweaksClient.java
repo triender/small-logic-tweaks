@@ -17,6 +17,13 @@ public class SmallLogicTweaksClient implements ClientModInitializer {
                     }
                 })));
 
+        // Vô hiệu hóa dự đoán phía client khi vào server từ xa chưa có mod (sẽ bật lại khi nhận ConfigSyncPayload)
+        ClientPlayConnectionEvents.INIT.register((handler, client) -> {
+            if (!client.isLocalServer()) {
+                ClientConfigSync.onJoinRemoteServer();
+            }
+        });
+
         // Khôi phục cấu hình cục bộ khi ngắt kết nối
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientConfigSync.restoreLocal());
 

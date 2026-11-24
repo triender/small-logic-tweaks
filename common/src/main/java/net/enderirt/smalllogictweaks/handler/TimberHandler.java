@@ -110,6 +110,9 @@ public final class TimberHandler {
         }
 
         Level level = player.level();
+        if (level.isClientSide() && !net.enderirt.smalllogictweaks.network.ClientConfigSync.isClientPredictionEnabled()) {
+            return 1.0f;
+        }
         if (!level.getBlockState(pos).is(BlockTags.LOGS)) {
             return 1.0f;
         }

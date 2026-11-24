@@ -94,7 +94,11 @@ public final class BoneMealHandler {
 
             // Điểm chốt làm mượt game (Client-side prediction):
             // Phía client thấy mọi điều kiện đã đủ thì trả về SUCCESS ngay để vung tay bón phân lập tức
-            if (world.isClientSide()) return InteractionResult.SUCCESS;
+            if (world.isClientSide()) {
+                return net.enderirt.smalllogictweaks.network.ClientConfigSync.isClientPredictionEnabled()
+                        ? InteractionResult.SUCCESS
+                        : InteractionResult.PASS;
+            }
 
             // Logic xử lý phía server
             world.setBlockAndUpdate(pos, newState);

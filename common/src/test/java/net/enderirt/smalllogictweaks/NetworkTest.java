@@ -26,5 +26,11 @@ public class NetworkTest {
         // 5. Khẳng định dữ liệu bảo toàn 100%
         Assertions.assertEquals(mockJson, decodedPayload.jsonConfig(),
                 "Lỗi CODEC: Dữ liệu cấu hình bị biến dạng hoặc suy hao trong quá trình truyền tải mạng (Serialization/Deserialization failure).");
+
+        // 6. Kiểm tra fromLocalConfig() và type()
+        ConfigSyncPayload localPayload = ConfigSyncPayload.fromLocalConfig();
+        Assertions.assertNotNull(localPayload.jsonConfig());
+        Assertions.assertNotNull(localPayload.type());
+        Assertions.assertEquals(ConfigSyncPayload.ID, localPayload.type());
     }
 }

@@ -104,7 +104,9 @@ public final class ConcreteHardeningHandler {
                     // Đồng bộ phía client (Client-side prediction):
                     // Trả về SUCCESS ở client để chặn hành vi mặc định (uống nước)
                     if (world.isClientSide()) {
-                        return InteractionResult.SUCCESS;
+                        return net.enderirt.smalllogictweaks.network.ClientConfigSync.isClientPredictionEnabled()
+                                ? InteractionResult.SUCCESS
+                                : InteractionResult.PASS;
                     }
 
                     // Logic xử lý phía server:

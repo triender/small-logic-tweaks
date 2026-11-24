@@ -21,6 +21,13 @@ public class SmallLogicTweaksNeoForgeClient {
         // Lắng nghe và ghi đè cấu hình vào ACTIVE_INSTANCE (logic kiểm tra biên nằm trong common)
         modBus.addListener(SmallLogicTweaksNeoForgeClient::onRegisterClientPayloadHandlers);
 
+        // Vô hiệu hóa dự đoán phía client khi vào server từ xa chưa có mod (sẽ bật lại khi nhận ConfigSyncPayload)
+        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
+            if (!Minecraft.getInstance().isLocalServer()) {
+                ClientConfigSync.onJoinRemoteServer();
+            }
+        });
+
         // Khôi phục cấu hình cục bộ khi ngắt kết nối
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientConfigSync.restoreLocal());
 

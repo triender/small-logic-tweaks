@@ -67,6 +67,10 @@ public final class DirtReversionHandler {
         // 2. Kiểm tra khối phải thuộc tag #small_logic_tweaks:pickaxe_reversion
         if (!state.is(PICKAXE_REVERSION_BLOCKS)) return InteractionResult.PASS;
 
+        if (world.isClientSide() && !net.enderirt.smalllogictweaks.network.ClientConfigSync.isClientPredictionEnabled()) {
+            return InteractionResult.PASS;
+        }
+
         // 3. Client-side prediction: Giao tập hợp giữa Hitbox người chơi và mặt trên của khối
         double targetY = pos.getY() + 1.0;
         AABB blockTopArea = new AABB(

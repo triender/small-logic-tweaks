@@ -15,7 +15,25 @@ import java.util.function.Consumer;
  *     A loader adapter only has to hop onto the client thread and call {@link #apply}.
  */
 public final class ClientConfigSync {
+    private static volatile boolean clientPredictionEnabled = true;
+
     private ClientConfigSync() {}
+
+    /**
+     * VI: Đánh dấu client vừa kết nối tới server từ xa (chưa xác nhận server có cài mod).
+     * EN: Marks client as connected to a remote server before receiving mod config sync.
+     */
+    public static void onJoinRemoteServer() {
+        clientPredictionEnabled = false;
+    }
+
+    /**
+     * VI: Cho biết phía client có được phép dự đoán tương tác thay mặt server hay không.
+     * EN: Returns whether client-side interaction prediction is enabled for the active session.
+     */
+    public static boolean isClientPredictionEnabled() {
+        return clientPredictionEnabled;
+    }
 
     /**
      * VI: Áp dụng cấu hình server sau khi kiểm tra biên an toàn. Phải gọi trên luồng client.
@@ -40,6 +58,7 @@ public final class ClientConfigSync {
                 // [VI] Nạp cấu hình an toàn đã được chuẩn hóa vào phiên làm việc hiện hành
                 // [EN] Load sanitized and validated configuration into active runtime instance
                 SmallLogicTweaksConfig.ACTIVE_INSTANCE = safeConfig;
+                clientPredictionEnabled = true;
                 KitchenHelper.clearCookableCache();
 
                 // [VI] Thông báo cho người chơi nếu cấu hình máy chủ vượt biên an toàn cục bộ
@@ -61,6 +80,7 @@ public final class ClientConfigSync {
      */
     public static void restoreLocal() {
         SmallLogicTweaksConfig.ACTIVE_INSTANCE = SmallLogicTweaksConfig.LOCAL_INSTANCE;
+        clientPredictionEnabled = true;
         KitchenHelper.clearCookableCache();
     }
 }
