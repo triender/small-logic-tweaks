@@ -43,6 +43,23 @@ public final class EndPhantomHandler {
     }
 
     /**
+     * VI: Xóa chỉ số mất ngủ tồn đọng nếu người chơi đăng nhập ở ngoài The End (ví dụ từ trước khi cài mod).
+     * EN: Clears leftover insomnia stat if the player logs in outside The End (e.g. from before installing the mod).
+     */
+    public static void resetInsomniaIfOutsideEnd(ServerPlayer player) {
+        if (!SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_END_PHANTOM) return;
+        if (player.level().dimension() == Level.END) return;
+
+        var stat = Stats.CUSTOM.get(Stats.TIME_SINCE_REST);
+        if (player.getStats().getValue(stat) > 0) {
+            player.resetStat(stat);
+            if (SmallLogicTweaksConfig.ACTIVE_INSTANCE.ENABLE_DEBUG_LOGS) {
+                LOGGER.info("[End-Phantom Debug] Cleared pre-existing Overworld/Nether insomnia stat for {}", player.getName().getString());
+            }
+        }
+    }
+
+    /**
      * VI: Xử lý nhịp tick server trong chiều không gian The End để kiểm tra điều kiện sinh Phantom.
      * EN: Handles server tick in the End dimension to evaluate Phantom spawn conditions.
      *

@@ -48,6 +48,7 @@ public class SmallLogicTweaksNeoForge {
     private static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             Services.NETWORK.sendToPlayer(player, ConfigSyncPayload.fromLocalConfig());
+            net.enderirt.smalllogictweaks.handler.EndPhantomHandler.resetInsomniaIfOutsideEnd(player);
         }
     }
 }

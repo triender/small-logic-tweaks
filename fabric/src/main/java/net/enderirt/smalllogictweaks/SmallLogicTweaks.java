@@ -23,9 +23,11 @@ public class SmallLogicTweaks implements ModInitializer {
 		PayloadTypeRegistry.clientboundPlay().register(ConfigSyncPayload.ID, ConfigSyncPayload.CODEC);
 
 		// Lắng nghe sự kiện người chơi tham gia
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-				// Đóng gói cấu hình cục bộ của Server và gửi xuống Client qua abstraction SPI
-				Services.NETWORK.sendToPlayer(handler.player, ConfigSyncPayload.fromLocalConfig()));
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			// Đóng gói cấu hình cục bộ của Server và gửi xuống Client qua abstraction SPI
+			Services.NETWORK.sendToPlayer(handler.player, ConfigSyncPayload.fromLocalConfig());
+			net.enderirt.smalllogictweaks.handler.EndPhantomHandler.resetInsomniaIfOutsideEnd(handler.player);
+		});
 		// 1. Luôn tải cấu hình đầu tiên
 		SmallLogicTweaksCommon.init();
 

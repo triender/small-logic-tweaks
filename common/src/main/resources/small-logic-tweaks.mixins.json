@@ -6,6 +6,7 @@
 		"TimberMiningSpeedMixin",
 		"ThrownPotionMixin",
 		"ServerPlayerMixin",
+		"PhantomSpawnerMixin",
 		"ItemEntityMixin",
 		"ItemEntityMergeMixin",
 		"TurtleEggBlockMixin",
