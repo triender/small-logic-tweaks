@@ -68,13 +68,13 @@ Introduces a practical identity for Charcoal.
 Instant concrete hydration through direct manual interaction.
 
 - right-click **Concrete Powder** with a **Water Bottle** to instantly harden it into **Concrete** (returns an empty Glass Bottle)
-- splash water bottles harden Concrete Powder in a localized 3x3x3 splash area with natural drop-off and line-of-sight awareness
+- splash water bottles harden the hit block and have a chance to harden adjacent Concrete Powder within the intersecting 3x3x3 impact area
 
 ### Aesthetic Kitchen
 
 Physics-based, container-free cooking on functional heat sources.
 
-- roast raw foods directly on heat sources (Magma Blocks, Fire, Lava), even when covered by Trapdoors, Pressure Plates, Slabs, or Carpets
+- roast raw foods on covered stoves (Magma Blocks, Fire, Soul Fire, or Lava under Trapdoors, Pressure Plates, Slabs, or Carpets), or directly on bare Magma Blocks
 - boil food stacks inside heated Water Cauldrons with sequential popping
 - dynamic thermal simulation: insulation via wool carpets, linear heat decay when pushed away, and strict stove reservations to prevent mass-cooking exploits
 
@@ -96,8 +96,7 @@ Organic loop integration for otherwise dead-end agricultural waste.
 
 Separating routine maintenance from magical progression.
 
-- repairing tool durability with raw materials or like-items no longer increases Prior Work Penalty (`RepairCost`)
-- renaming tools no longer increases `RepairCost`
+- repairing tool durability with raw materials or like-items—including renaming in the same operation—no longer increases Prior Work Penalty (`RepairCost`)
 - only applying new enchantments or upgrading enchantment tiers scales penalty cost
 
 ### Weightless Creatures (MC-248332)
@@ -146,14 +145,13 @@ Tool identity is intentional:
 
 ## Compatibility
 
-- Platform targets: **Fabric** and **NeoForge** (separate downloads; pick the one matching your loader)
-  - Fabric build requires Fabric API
-  - Quilt: the Fabric build runs on Quilt Loader 0.31+ (currently beta); Quilt Loader 0.30.x is not supported
-  - NeoForge build for Minecraft 26.3 is a beta while NeoForge 26.3 itself is in beta
+- Platform targets: **Fabric**, **Quilt** (via the Fabric build), and **NeoForge** (separate downloads for Fabric/Quilt vs. NeoForge)
+  - Fabric / Quilt build requires Fabric API (verified on Quilt Loader 0.30.2+)
+  - NeoForge build targets stable NeoForge 26.3 (`26.3.0.103+`)
 - Style target: Vanilla-like gameplay
 - Designed to be lightweight and minimally invasive
 - Intended to coexist with most QoL and world-generation mods
-- Multiplayer requires installation on both client and server for synchronized behavior (client and server must use the same loader)
+- Vanilla clients can join servers for all server-only features; client installation is only required for Timber mining-speed sync and recommended for Anvil UI level sync (when installed on both sides, client and server should use the same loader)
 
 ## Safe Removal & World Persistence
 
@@ -178,15 +176,6 @@ The following concepts are being explored and may release in any order.
 ### Lever stone crafting parity
 - Expands the lever recipe to accept Cobbled Deepslate and Blackstone via `#minecraft:stone_crafting_materials`.
 - Ensures underground mining and Nether survival players can craft basic redstone levers without surface cobblestone.
-
-### Sawmill
-- improves plank and byproduct yield relative to baseline crafting recipes
-- improved decorative workflow support
-- potential future Fletching Table integration
-
-### Acoustic Glass
-- dampens sound and vibrations passing through while remaining visually transparent
-- high-tier redstone utility using Echo Shards to eliminate bulky wool encasements
 
 ## Feedback & Contributions
 
